@@ -31,7 +31,7 @@ struct SetupView: View {
                             Spacer()
                             Text(controller.currentState.displayText).foregroundStyle(.secondary)
                         }
-                        Text("Uses the normal official ChatGPT profile and ~/.codex. It can still be opened when Second Account compatibility needs review, as long as the official OpenAI app identity verifies.")
+                        Text("Uses the normal official ChatGPT profile and ~/.codex. It can still be opened while Second Account compatibility is being checked or needs re-approval, as long as Second ownership is not in an uncertain recovery state.")
                             .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         if !controller.previewOnly {
                             Button("Open / Focus Current Account") { Task { await controller.open(.a) } }
@@ -47,6 +47,7 @@ struct SetupView: View {
                             .textSelection(.enabled)
                         Spacer()
                         Button("Locate app…") { controller.chooseApp() }
+                            .disabled(controller.busy)
                     }.padding(8)
                 }
 
@@ -78,11 +79,13 @@ struct SetupView: View {
 
                         HStack {
                             Button("Check installed build") { Task { await controller.checkCompatibility() } }
+                                .disabled(controller.busy)
                             Spacer()
                             Button(controller.settings.setupComplete ? "Approve build & save" : "Complete Second Account setup") {
                                 Task { await controller.approveSetup(nameA: nameA, nameB: nameB) }
                             }
                             .buttonStyle(.borderedProminent)
+                            .disabled(controller.busy)
                             if controller.busy { ProgressView().controlSize(.small) }
                         }
                     }.padding(8)
@@ -112,7 +115,6 @@ struct SetupView: View {
             }
             .padding(26)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .disabled(controller.busy)
         }
         .frame(width: 740, height: 720)
     }
@@ -143,8 +145,8 @@ struct DiagnosticsView: View {
             HStack {
                 Button("Recheck isolation compatibility") { Task { await controller.checkCompatibility() } }
                     .disabled(controller.busy)
-                Button("Try Safe Recovery") { controller.resolveInterruptedLaunches() }
-                    .disabled(!controller.capabilities.canRecoverSecond)
+                Button("Try Safe Recovery") { Task { await controller.resolveInterruptedLaunches() } }
+                    .disabled(!controller.capabilities.canRecoverSecond || controller.busy)
                 Button(copied ? "Copied" : "Copy Diagnostics") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(controller.diagnosticText, forType: .string)
@@ -159,7 +161,7 @@ struct DiagnosticsView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Fresh Second Account").font(.headline)
-                    Text("Archives the entire existing isolated profile without reading or deleting its contents. The next Second Account launch creates fresh storage.")
+                    Text("For maximum safety this is available only when every official ChatGPT instance is closed. It archives the entire existing isolated profile without reading or deleting its contents; the next Second launch creates fresh storage.")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -174,7 +176,7 @@ struct DiagnosticsView: View {
             Button("Cancel", role: .cancel) {}
             Button("Archive & Reset") { controller.resetSecondAccount() }
         } message: {
-            Text("Second Account must be fully stopped. Its existing private directory will be moved under Profiles/Archived, not deleted. The next launch will require signing into Second Account again.")
+            Text("All official ChatGPT instances must be closed first. Existing Second Account storage will be moved under Profiles/Archived, not deleted. The next Second Account launch will require signing in again.")
         }
     }
 }
@@ -185,7 +187,7 @@ struct UninstallView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Remove the switcher safely").font(.title2.bold())
-            Text("1. Finish work in Second Account and quit it from the switcher.\n2. Current Account can remain open; the switcher does not own it.\n3. Disable startup at login below.\n4. Quit the switcher and move Codex Dual Account Switcher.app to Trash.")
+            Text("1. Finish work in Second Account and quit it from the switcher.\n2. Current Account can remain open; the switcher does not own it.\n3. Disable startup at login below.\n4. Quit the switcher and move Codex Account Switcher.app to Trash.")
                 .fixedSize(horizontal: false, vertical: true)
 
             Button("Disable startup at login") { controller.disableLoginForUninstall() }
