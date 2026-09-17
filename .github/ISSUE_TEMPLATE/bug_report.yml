@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem without sharing account data.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include tokens, cookies, account emails, browser data, Keychain data, or unredacted ChatGPT diagnostics. For a security-sensitive report, use private vulnerability reporting when it is enabled.
+  - type: input
+    id: version
+    attributes:
+      label: Switcher version and build
+      placeholder: "1.2.0 (12)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 15.x"
+    validations:
+      required: true
+  - type: textarea
+    id: app
+    attributes:
+      label: Official ChatGPT app version
+      description: Include the app version/build, not account information.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Current Account discovery or focus
+        - Second Account launch or focus
+        - Second Account graceful quit or restart
+        - Compatibility or update gate
+        - Safe recovery or reset
+        - Setup, menu, diagnostics, or startup at login
+        - Build or test tooling
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …\n3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, account identities, cookies, browser data, and Keychain data from this report.
+          required: true

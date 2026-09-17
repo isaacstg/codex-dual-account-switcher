@@ -30,15 +30,25 @@ On this Mac, the Current + Second source revision also passed:
 - read-only inspection of `/Applications/ChatGPT.app` (OpenAI identity, Electron override markers, and fingerprint `d327e421c63f1bf5ee9648ec99c84c292d01da08cd3d1bfd6adb65c435c9ea73`);
 - release build, fresh ZIP extraction, and strict verification of the extracted app bundle.
 
-The local archive checksum was `2d806aa26cc9f35dd64d3e4c2b69644f91553dd8f3615c47d63a92ec0b86b089`.
+The opt-in live smoke test also passed on this Mac with exactly one pre-existing normal Current process:
+
+- Current remained the same verified process (PID `38754`) throughout;
+- the tool launched a different verified official Second process (PID `61410`);
+- the Second process initialized its separate Electron and Codex directories;
+- both processes ran simultaneously;
+- only the verified disposable Second process received a graceful termination request; and
+- the normal Current process remained intact after the test.
+
+The scratch Second data was retained at `work/live-smoke-20260917` for local inspection. It contains no test login because the smoke test never signs in or reads profile contents.
+
+The locally rebuilt archive checksum was `57172428fbb03e87e63a533e4abb5e7b9f44a0716136a292534554c1632726af`.
 
 ## Current-architecture validation still required
 
 The following have not yet been claimed as complete for the Current + Second revision:
 
-1. Live smoke test with exactly one existing normal Current instance and one disposable isolated Second instance.
-2. Signed-in two-account acceptance: persistence, focus, repeated shortcuts/Open Both, graceful Second quit/restart, and switcher restart.
-3. Launch-at-login, update/fingerprint, interrupted-launch recovery, reset/archive, uninstall/reinstall, and legacy-data upgrade acceptance.
+1. Signed-in two-account acceptance: persistence, focus, repeated shortcuts/Open Both, graceful Second quit/restart, and switcher restart.
+2. Launch-at-login, update/fingerprint, interrupted-launch recovery, reset/archive, uninstall/reinstall, and legacy-data upgrade acceptance.
 
 CI cannot prove OAuth behavior, session persistence, or account isolation at runtime.
 
@@ -60,7 +70,7 @@ Open exactly one normal official ChatGPT instance first. Then run with a new scr
 swift run SwitcherSmokeTest /Applications/ChatGPT.app /absolute/new/scratch-root
 ```
 
-The smoke test refuses zero or multiple Current candidates. It launches one fresh isolated Second, verifies only storage metadata, confirms Current and Second coexist, gracefully terminates only the verified Second process, and preserves Current. It never signs in or reads profile, authentication, cookie, Keychain, argv, or environment data. Scratch Second data is retained for inspection.
+The smoke test refuses zero or multiple Current candidates. It launches one fresh isolated Second, verifies only storage metadata, confirms Current and Second coexist, gracefully terminates only the verified Second process, and preserves Current. It never signs in or reads profile, authentication, cookie, Keychain, argv, or environment data. Scratch Second data is retained for inspection. Use a new path with no symbolic links in its ancestry; macOS exposes `/tmp` and `/var` through symbolic links, which the private-store guard rejects.
 
 ## Release boundary
 

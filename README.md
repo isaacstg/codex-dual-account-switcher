@@ -1,6 +1,6 @@
 # Codex Account Switcher for macOS
 
-A small native menu-bar utility for keeping **your normal ChatGPT/Codex account** and **one additional isolated account** open at the same time in the official OpenAI macOS app.
+An independent, unofficial native menu-bar utility for keeping **your normal ChatGPT/Codex account** and **one additional isolated account** open at the same time in the official OpenAI macOS app. It is not affiliated with or endorsed by OpenAI.
 
 The project deliberately optimizes for one simple daily workflow:
 
@@ -222,6 +222,7 @@ Repository design/status documents:
 - `docs/IMPLEMENTATION_PLAN.md`
 - `docs/IMPLEMENTATION_STATUS.md`
 - `docs/STATE_MACHINE.md`
+- `docs/PUBLIC_RELEASE_CHECKLIST.md`
 - `VALIDATION.md`
 
 Typical local validation after checking out the repository:
@@ -242,7 +243,7 @@ The release script produces:
 dist/Codex-Account-Switcher.zip
 ```
 
-Personal builds may be ad-hoc signed. Public distribution should use an authorized Apple Developer ID and notarization. Do not globally disable Gatekeeper to install this utility.
+Personal builds and CI artifacts are ad-hoc signed. Public distribution should use an authorized Apple Developer ID and notarization. Do not globally disable Gatekeeper to install this utility.
 
 ## Inspiration
 

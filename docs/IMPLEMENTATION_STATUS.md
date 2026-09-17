@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last reconciled against `main` at `c4425023c6bfa531970146d0183de8b0af249d65`.
+Last reconciled against `main` after the Current + Second live smoke validation.
 
 ## Product invariant
 
@@ -24,12 +24,12 @@ Run #42 on GitHub Actions passed every configured job on both supported runner v
 - Source-policy audit and all 41 unit tests passed.
 - Official `/Applications/ChatGPT.app` passed read-only identity and isolation compatibility inspection.
 - Release archive built, extracted into a fresh directory, and passed strict app-bundle verification.
+- The live smoke test passed with one preserved normal Current process and one disposable Second process. It verified separate storage, simultaneous processes, graceful Second termination, and Current preservation.
 
-The live smoke test was intentionally not run because two normal official ChatGPT processes were present. The test requires exactly one and refuses to guess which one is Current.
+The disposable smoke profile remains in an ignored local `work/` directory. It was never signed in and was not read by the test.
 
 ## Implemented but requires live validation
 
-- Current + Second smoke test with one existing normal Current process.
 - Signed-in dual-account persistence and OAuth behavior.
 - Hotkeys, repeated Open Both, graceful Second quit/restart, and switcher restart with both processes alive.
 - Interrupted launch, stale receipt, changed fingerprint, moved app, reset/archive, login-item, uninstall/reinstall, and legacy-data upgrade acceptance.
