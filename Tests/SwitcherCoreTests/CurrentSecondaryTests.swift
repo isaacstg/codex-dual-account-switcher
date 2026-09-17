@@ -21,6 +21,19 @@ final class CurrentSecondaryTests: XCTestCase {
         XCTAssertEqual(AccountStateResolver.current(officialPIDs: [42, 84], verifiedSecondaryPID: nil), .ambiguous(count: 2))
     }
 
+    func testCurrentDiscoveryBlocksWhileSecondaryOwnershipIsUncertain() {
+        XCTAssertEqual(
+            AccountStateResolver.current(officialPIDs: [42], verifiedSecondaryPID: nil,
+                                         secondaryOwnershipUncertain: true),
+            .blockedBySecondaryRecovery(count: 1)
+        )
+        XCTAssertEqual(
+            AccountStateResolver.current(officialPIDs: [], verifiedSecondaryPID: nil,
+                                         secondaryOwnershipUncertain: true),
+            .blockedBySecondaryRecovery(count: 0)
+        )
+    }
+
     func testMultipleDefaultInstancesAreAmbiguousAndNeverGuessed() {
         XCTAssertEqual(AccountStateResolver.current(officialPIDs: [10, 20, 30], verifiedSecondaryPID: 30), .ambiguous(count: 2))
     }
@@ -115,6 +128,15 @@ final class CurrentSecondaryTests: XCTestCase {
         XCTAssertFalse(caps.canOpenBoth)
         XCTAssertFalse(caps.canQuitSecond)
         XCTAssertFalse(caps.canRestartSecond)
+        XCTAssertTrue(caps.canRecoverSecond)
+    }
+
+    func testCapabilitiesBlockCurrentDuringSecondaryRecovery() {
+        let caps = AccountCapabilities(current: .blockedBySecondaryRecovery(count: 1), secondary: .ownershipUncertain,
+                                       secondarySetupComplete: true, compatibilityBusy: false)
+        XCTAssertFalse(caps.canOpenCurrent)
+        XCTAssertFalse(caps.canOpenSecond)
+        XCTAssertFalse(caps.canOpenBoth)
         XCTAssertTrue(caps.canRecoverSecond)
     }
 
