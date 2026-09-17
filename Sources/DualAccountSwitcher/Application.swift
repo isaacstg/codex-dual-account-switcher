@@ -68,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .running: return "●"
         case .stopped: return "○"
         case .launching: return "◐"
-        case .ambiguous: return "⚠"
+        case .ambiguous, .blockedBySecondaryRecovery: return "⚠"
         }
     }
 
@@ -114,15 +114,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         quit.isEnabled = capabilities.canQuitSecond
 
         if capabilities.canRecoverSecond {
-            let recover = add("Recover Second Account…", action: "recover", to: menu)
-            recover.isEnabled = true
+            add("Recover Second Account…", action: "recover", to: menu)
         }
 
         menu.addItem(.separator())
         let both = add("Open Both", action: "both", to: menu)
         both.isEnabled = capabilities.canOpenBoth
-        if controller.currentState.isAmbiguous {
+
+        switch controller.currentState {
+        case .ambiguous:
             menu.addItem(NSMenuItem(title: "⚠ Multiple default ChatGPT instances · Current focus disabled", action: nil, keyEquivalent: ""))
+        case .blockedBySecondaryRecovery:
+            menu.addItem(NSMenuItem(title: "⚠ Current discovery paused until Second recovery completes", action: nil, keyEquivalent: ""))
+        default:
+            break
         }
         if controller.secondaryState.needsRecovery {
             menu.addItem(NSMenuItem(title: "⚠ Second Account needs safe recovery before relaunch", action: nil, keyEquivalent: ""))
