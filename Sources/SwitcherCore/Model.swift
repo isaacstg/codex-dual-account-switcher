@@ -84,12 +84,52 @@ public struct LaunchReceipt: Codable, Equatable {
     }
 }
 
-public struct Settings: Codable {
-    public var appPath = "/Applications/ChatGPT.app"
-    public var nameA = "Current account"
-    public var nameB = "Second account"
+/// Settings use an explicit decoder instead of synthesized Codable so adding optional/defaulted
+/// fields in future releases does not make an older settings.json unreadable.
+public struct Settings: Codable, Equatable {
+    public static let currentSchemaVersion = 2
+
+    public var schemaVersion: Int
+    public var appPath: String
+    public var nameA: String
+    public var nameB: String
     public var approvedFingerprint: String?
-    public var setupComplete = false
-    public init() {}
+    public var setupComplete: Bool
+
+    public init() {
+        schemaVersion = Self.currentSchemaVersion
+        appPath = "/Applications/ChatGPT.app"
+        nameA = "Current account"
+        nameB = "Second account"
+        approvedFingerprint = nil
+        setupComplete = false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, appPath, nameA, nameB, approvedFingerprint, setupComplete
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        appPath = try container.decodeIfPresent(String.self, forKey: .appPath) ?? "/Applications/ChatGPT.app"
+        nameA = try container.decodeIfPresent(String.self, forKey: .nameA) ?? "Current account"
+        nameB = try container.decodeIfPresent(String.self, forKey: .nameB) ?? "Second account"
+        approvedFingerprint = try container.decodeIfPresent(String.self, forKey: .approvedFingerprint)
+        setupComplete = try container.decodeIfPresent(Bool.self, forKey: .setupComplete) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(Self.currentSchemaVersion, forKey: .schemaVersion)
+        try container.encode(appPath, forKey: .appPath)
+        try container.encode(nameA, forKey: .nameA)
+        try container.encode(nameB, forKey: .nameB)
+        try container.encodeIfPresent(approvedFingerprint, forKey: .approvedFingerprint)
+        try container.encode(setupComplete, forKey: .setupComplete)
+    }
+
     public func name(_ id: ProfileID) -> String { id == .a ? nameA : nameB }
+
+    public var needsSchemaRewrite: Bool { schemaVersion != Self.currentSchemaVersion }
 }
