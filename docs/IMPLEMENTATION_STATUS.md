@@ -17,7 +17,7 @@ Current Account is the user's normal official ChatGPT/Codex profile. It is never
 - Update-race quarantine, private-store path/permission protections, diagnostics, safe uninstall text, and opt-in startup at login.
 - Current/Second UX, fixed global shortcuts, source-policy audit, expanded unit tests, macOS 14/15 CI, release build, and strict bundle verification.
 
-Run #42 on GitHub Actions passed every configured job on both supported runner versions. This validates compilation and static checks; it does not validate real accounts.
+GitHub Actions runs #42 and #43 passed every configured job on both supported runner versions. Run #43 also retained the ZIP, SHA-256, and build-provenance artifacts for each runner. This validates compilation and static checks; it does not validate real accounts.
 
 ## Locally validated, but not a signed-in acceptance test
 

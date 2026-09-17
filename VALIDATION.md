@@ -19,6 +19,8 @@ GitHub Actions run #42 passed on both macOS 14 and macOS 15:
 - release build;
 - strict bundle signature verification.
 
+GitHub Actions run #43 repeated those checks on both macOS versions and successfully retained a personal-build ZIP, SHA-256 checksum, and build-provenance artifact for each runner.
+
 The audit rejects networking, credential and browser-store APIs, process argv/environment inspection, subprocess control, force-kill behavior, Dock mutation, and private Current/A storage or ownership patterns.
 
 The build stages the app in `/private/tmp`, ad-hoc signs only the switcher bundle, verifies it, then packages it without resource-fork or extended-attribute metadata. This is suitable for a personal local build. It is not Developer ID notarization.
