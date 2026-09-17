@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ServiceManagement
 import SwitcherCore
@@ -13,62 +14,96 @@ struct SetupView: View {
     }
     var body: some View {
         ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("Two accounts. One official app.", systemImage: "person.2.fill")
-                .font(.system(size: 25, weight: .semibold))
-            Text("Keep Personal and a second account running together. Each starts with fresh Codex and Electron storage. Sign in separately in the official app; your existing account is not imported.")
-                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            GroupBox("1 · Select the official app") {
-                HStack { Text(controller.settings.appPath).font(.system(.caption, design: .monospaced)).textSelection(.enabled); Spacer(); Button("Locate app…") { controller.chooseApp() } }.padding(8)
-            }
-            GroupBox("2 · Name your profiles") {
-                VStack(spacing: 12) {
-                    HStack { Text("A  ⌥⌘1").frame(width: 70, alignment: .leading); TextField("Personal", text: $nameA) }
-                    HStack { Text("B  ⌥⌘2").frame(width: 70, alignment: .leading); TextField("Second account", text: $nameB) }
-                }.padding(8)
-            }
-            GroupBox("3 · Review compatibility") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(controller.compatibilityText).font(.system(.caption, design: .monospaced)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                    Text("Multi-instance operation depends on OpenAI’s app behavior. After every app change, review compatibility again. Confirm each profile shows its intended account before doing work. Browser sign-in may select your last browser account; switch it deliberately.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 18) {
+                Label("Your current account + one isolated account", systemImage: "person.2.fill")
+                    .font(.system(size: 25, weight: .semibold))
+                Text("Your existing ChatGPT profile stays exactly where it is and keeps using your normal Codex setup. The switcher creates separate storage only for the second account. It never copies or reads sign-in data.")
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
+                GroupBox("1 · Official ChatGPT app") {
                     HStack {
-                        Button("Check installed build") { Task { await controller.checkCompatibility() } }
-                        Spacer()
-                        Button(controller.settings.setupComplete ? "Approve build & save" : "Complete setup") { Task { await controller.approveSetup(nameA: nameA, nameB: nameB) } }.buttonStyle(.borderedProminent)
-                        if controller.busy { ProgressView().controlSize(.small) }
+                        Text(controller.settings.appPath).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                        Spacer(); Button("Locate app…") { controller.chooseApp() }
+                    }.padding(8)
+                }
+
+                GroupBox("2 · Account labels") {
+                    VStack(spacing: 12) {
+                        HStack { Text("⌥⌘1").frame(width: 55, alignment: .leading); TextField("Current account", text: $nameA); Text("existing profile").font(.caption).foregroundStyle(.secondary) }
+                        HStack { Text("⌥⌘2").frame(width: 55, alignment: .leading); TextField("Second account", text: $nameB); Text("isolated storage").font(.caption).foregroundStyle(.secondary) }
+                    }.padding(8)
+                }
+
+                GroupBox("3 · Compatibility") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(controller.compatibilityText).font(.system(.caption, design: .monospaced)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                        Text("The second account depends on OpenAI's app continuing to support separate Electron and Codex directories. A changed build must be reviewed before the switcher creates an isolated instance. Your normal ChatGPT data is never migrated.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Button("Check installed build") { Task { await controller.checkCompatibility() } }
+                            Spacer()
+                            Button(controller.settings.setupComplete ? "Approve build & save" : "Complete setup") {
+                                Task { await controller.approveSetup(nameA: nameA, nameB: nameB) }
+                            }.buttonStyle(.borderedProminent)
+                            if controller.busy { ProgressView().controlSize(.small) }
+                        }
+                    }.padding(8)
+                }
+
+                if controller.settings.setupComplete && !controller.previewOnly {
+                    GroupBox("Next step") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Open the second account once and sign into the other ChatGPT account. Your current account does not need to be signed in again.")
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Open Second Account") { Task { await controller.open(.b) } }.buttonStyle(.borderedProminent)
+                        }.padding(8)
                     }
-                }.padding(8)
-            }
-            HStack {
-                Text(controller.previewOnly ? "UI preview · Account, shortcut and login actions are disabled." : (controller.settings.setupComplete ? "Setup saved · Use the menu bar to open each account." : "Setup never asks for passwords or reads authentication data.")).font(.caption).foregroundStyle(.secondary)
-                Spacer()
-            }
-        }.padding(26).frame(maxWidth: .infinity, alignment: .leading).disabled(controller.busy)
-        }.frame(width: 700, height: 660)
+                }
+
+                Text(controller.previewOnly ? "UI preview · launch and login-item actions are disabled." : "Tip: ⌥⌘1 focuses your current account; ⌥⌘2 focuses the isolated second account. If one is not running, the shortcut opens it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }.padding(26).frame(maxWidth: .infinity, alignment: .leading).disabled(controller.busy)
+        }.frame(width: 720, height: 680)
     }
 }
+
 struct DiagnosticsView: View {
     @ObservedObject var controller: Controller
+    @State private var copied = false
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Diagnostics").font(.title2.bold())
-            Text("Only switcher events and process ownership metadata appear here. Logs stay in memory and clear when the switcher quits.").foregroundStyle(.secondary)
-            ScrollView { Text(controller.diagnosticText).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(12) }
-                .background(Color(nsColor: .textBackgroundColor)).clipShape(RoundedRectangle(cornerRadius: 8))
-            HStack { Button("Recheck compatibility") { Task { await controller.checkCompatibility() } }.disabled(controller.busy); Button("Resolve interrupted launches") { controller.resolveInterruptedLaunches() }; Spacer(); Button("Clear log") { controller.logs.removeAll() } }
-        }.padding(24).frame(width: 730, height: 570)
+            Text("This contains switcher state and ownership metadata only. It does not inspect account identities, credentials, ChatGPT logs, command-line arguments, or process environments.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                Text(controller.diagnosticText).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+            }.background(Color(nsColor: .textBackgroundColor)).clipShape(RoundedRectangle(cornerRadius: 8))
+            HStack {
+                Button("Recheck compatibility") { Task { await controller.checkCompatibility() } }.disabled(controller.busy)
+                Button("Resolve interrupted Second launch") { controller.resolveInterruptedLaunches() }
+                Button(copied ? "Copied" : "Copy Diagnostics") {
+                    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(controller.diagnosticText, forType: .string)
+                    copied = true
+                }
+                Spacer(); Button("Clear log") { controller.logs.removeAll(); copied = false }
+            }
+        }.padding(24).frame(width: 760, height: 590)
     }
 }
+
 struct UninstallView: View {
     @ObservedObject var controller: Controller
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Remove the switcher safely").font(.title2.bold())
-            Text("1. Quit each profile using the menu when its work is finished.\n2. Disable startup at login below.\n3. Quit the switcher and move Codex Dual Account Switcher.app to Trash.").fixedSize(horizontal: false, vertical: true)
+            Text("1. Finish work in the second account and quit it from the switcher.\n2. Your current ChatGPT account can remain open; the switcher does not own it.\n3. Disable startup at login below.\n4. Quit the switcher and move Codex Dual Account Switcher.app to Trash.")
+                .fixedSize(horizontal: false, vertical: true)
             Button("Disable startup at login") { controller.disableLoginForUninstall() }
-            Text("Profile data stays at:").font(.headline)
+            Text("Second-account data is preserved at:").font(.headline)
             Text(controller.store.root.path).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-            Text("Uninstall does not sign you out, delete accounts, or touch the official app. To erase data later, use the documented explicit purge procedure after quitting both profiles.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.padding(26).frame(width: 550)
+            Text("Uninstall never signs you out of your current account, deletes the isolated account data, or modifies the official ChatGPT app. Legacy data from older switcher versions is also left untouched.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }.padding(26).frame(width: 590)
     }
 }
