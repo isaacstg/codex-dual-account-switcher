@@ -103,7 +103,7 @@ The menu-bar UI calls initial authorization **Set Up Second Account** and change
 
 **Save Names** is a separate metadata-only operation. It cannot change the approved fingerprint, app path, schema, or setup state. Confirmation is refused during pending recovery or an in-flight account lifecycle action, and state is checked again after the asynchronous app inspection. A newer version must not be approved to bypass uncertainty about an older running process.
 
-All routine UI lives in an accessory-app popover. Native startup-error dialogs and the app file picker remain OS-provided exceptions. No accessibility permission, event-monitor permission, or new entitlement is required by the redesign.
+All routine UI lives in an accessory-app popover. Native action confirmations, startup-error dialogs, and the app file picker remain OS-provided exceptions. No accessibility permission, event-monitor permission, or new entitlement is required by the redesign.
 
 ## Interrupted launches and recovery
 

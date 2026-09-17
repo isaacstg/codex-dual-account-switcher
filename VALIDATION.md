@@ -67,9 +67,19 @@ For 1.3.0 (13), local verification passed:
 - native Shift-Command-B back navigation, Escape dismissal, and app reopening;
 - long labels, simulated pending recovery with disabled account controls, and explicit changed-fingerprint confirmation.
 
-UI tests used only ignored scratch metadata with preview mode enabled. They never launched/focused/quit a live account, registered shortcuts, changed startup settings, or read profile contents. Unavailable-build confirmation gating was unit-tested; the actual installed official app passed its checks, so an unavailable-build native UI case was not claimed.
+The preview UI tests used only ignored scratch metadata. Preview never launched/focused/quit a live account, registered shortcuts, changed startup settings, or read profile contents. Unavailable-build confirmation gating was unit-tested; the actual installed official app passed its checks, so an unavailable-build native UI case was not claimed.
 
-The redesigned quit/restart confirmations, global-shortcut error presentation, and startup option still require normal installed-app acceptance. The lifecycle and isolation implementation is unchanged except for stricter update-confirmation guards.
+GitHub Actions [run 35255458165](https://github.com/isaacstg/codex-dual-account-switcher/actions/runs/35255458165) passed the audit, metadata checks, tests, release build, strict bundle verification, provenance generation, and artifact upload on both macOS 14 and 15 for source commit `db3fc8b8d9a5a2317919634ffd0778997b0a74b8`.
+
+Installed-app validation on this Mac also passed:
+
+- The existing switcher bundle was backed up, then upgraded to 1.3 from the checksum-verified ZIP with fresh extraction and strict installed-bundle verification. Existing labels and completed setup were preserved. Account storage was untouched.
+- The original Current process remained PID `38754` throughout the upgrade and UI tests.
+- Opening the actual Second Account launched verified PID `65248`, coexisting with Current. Both cards displayed Running.
+- Three Open Both activations retained exactly those two official processes, without extra instances.
+- The native Restart Second Account confirmation displayed the save-work warning and Current-preservation message. Cancelling retained both process identities; no account was quit or restarted.
+
+Physical global shortcuts, shortcut-conflict presentation, actual quit/restart execution, and startup-at-login still require acceptance. App-targeted automated key events did not demonstrate global shortcut dispatch and are not counted as verification. The lifecycle and isolation implementation is unchanged except for stricter update-confirmation guards.
 
 The verified local 1.3 ZIP SHA-256 is `5f62a513a08bd935f9e4acbcf8df76f4d50259f9de8c30748f35826c70cb72b6`.
 

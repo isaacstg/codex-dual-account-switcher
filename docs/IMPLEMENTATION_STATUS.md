@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last reconciled against `main` after the Current + Second live smoke validation.
+Last reconciled against `main` after the 1.3 installed-app upgrade and native UI validation.
 
 ## 1.3 menu-bar revision
 
@@ -15,7 +15,11 @@ Implemented and locally validated:
 
 Native preview exercised first run, ready state, saved/invalid names, Help details, keyboard back, Escape dismissal/reopen, long labels, simulated pending recovery, and a simulated changed fingerprint. Preview never launched an account or changed login items. The original 1.2 daily workflow was reported by the user as working perfectly; the detailed signed-in release matrix is still distinct from that report.
 
-See `docs/UX_IMPROVEMENT_PLAN.md` for the implemented scope and prioritized proposals. CI evidence for the new revision must be recorded only after its jobs complete.
+The 1.3 executable source commit `db3fc8b8d9a5a2317919634ffd0778997b0a74b8` passed every CI step on macOS 14 and 15 in run `35255458165`, including artifact upload.
+
+The installed switcher was backed up and upgraded to 1.3 with strict signature verification, retaining labels/setup and preserving the original Current process. Live Second opening, both Running cards, three Open Both activations without duplicate processes, and cancellation of the native Restart confirmation were observed. Neither live account was terminated. Physical global-keyboard dispatch and startup behavior remain unverified by this automated UI session.
+
+See `docs/UX_IMPROVEMENT_PLAN.md` for the implemented scope and prioritized proposals.
 
 ## Product invariant
 
@@ -46,7 +50,7 @@ The disposable smoke profile remains in an ignored local `work/` directory. It w
 ## Implemented but requires live validation
 
 - Signed-in dual-account persistence and OAuth behavior.
-- Hotkeys, repeated Open Both, graceful Second quit/restart, and switcher restart with both processes alive.
+- Physical hotkeys, rapid overlapping Open Both stress, graceful Second quit/restart, and switcher restart with both processes alive.
 - Interrupted launch, stale receipt, changed fingerprint, moved app, reset/archive, login-item, uninstall/reinstall, and legacy-data upgrade acceptance.
 
 ## Deliberately deferred
@@ -57,7 +61,7 @@ The disposable smoke profile remains in an ignored local `work/` directory. It w
 
 ## Next validation sequence
 
-1. Ensure exactly one normal Current instance is running, then run the disposable one-Current/one-Second smoke test.
+1. Preserve the existing normal Current instance; the disposable one-Current/one-Second smoke test has already passed.
 2. Validate the real two-account workflow without relaxing any ownership invariant.
 3. Record only performed evidence in `VALIDATION.md`.
 4. Tag/release only after that acceptance work; notarize only if distributing outside this Mac.
