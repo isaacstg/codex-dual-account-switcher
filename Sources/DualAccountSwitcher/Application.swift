@@ -203,11 +203,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func confirmRecovery(_ controller: Controller) {
         let alert = NSAlert()
         alert.messageText = "Recover Second Account?"
-        alert.informativeText = "If a verified Second Account receipt exists, recovery is automatic and does not close anything. Otherwise recovery will only proceed after all official ChatGPT instances are closed, so the switcher never guesses process ownership."
+        alert.informativeText = "If a verified Second Account receipt exists, recovery will re-check the approved isolation fingerprint before trusting it. Otherwise recovery only proceeds after all official ChatGPT instances are closed, so the switcher never guesses process ownership."
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Try Safe Recovery")
         NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertSecondButtonReturn { controller.resolveInterruptedLaunches() }
+        if alert.runModal() == .alertSecondButtonReturn {
+            Task { await controller.resolveInterruptedLaunches() }
+        }
     }
 
     private func showSetup() {
