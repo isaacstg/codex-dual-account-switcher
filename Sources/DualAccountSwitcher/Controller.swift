@@ -58,8 +58,6 @@ final class Controller: ObservableObject {
         log("Controller ready. Current Account uses normal ChatGPT storage; Second Account alone is isolated. No credentials were read or copied.")
     }
 
-    deinit { timer?.invalidate() }
-
     // MARK: - Public derived state
 
     var capabilities: AccountCapabilities {
@@ -140,13 +138,6 @@ final class Controller: ObservableObject {
         reconcileDeadSecondaryReceipt()
 
         let apps = officialApps
-        let verifiedB = verifiedSecondary()
-        currentState = AccountStateResolver.current(
-            officialPIDs: apps.map(\.processIdentifier),
-            verifiedSecondaryPID: verifiedB?.processIdentifier,
-            launching: inFlight.contains(.a)
-        )
-
         let receipt = receipts.first
         let currentStamp = receipt.flatMap { ProcessStamp.read(pid: $0.stamp.pid) }
         let recordedPIDIsLive = receipt.flatMap { runtime.application(pid: $0.stamp.pid) } != nil
@@ -159,6 +150,14 @@ final class Controller: ObservableObject {
             launching: inFlight.contains(.b),
             quitting: shuttingDown.contains(.b),
             recordedPIDIsLive: recordedPIDIsLive
+        )
+
+        let verifiedB = verifiedSecondary()
+        currentState = AccountStateResolver.current(
+            officialPIDs: apps.map(\.processIdentifier),
+            verifiedSecondaryPID: verifiedB?.processIdentifier,
+            secondaryOwnershipUncertain: secondaryState.needsRecovery,
+            launching: inFlight.contains(.a)
         )
 
         status[.a] = currentState.displayText
@@ -286,6 +285,11 @@ final class Controller: ObservableObject {
 
     private func openCurrent() async {
         guard !inFlight.contains(.a) else { return }
+        refresh()
+        guard !secondaryState.needsRecovery else {
+            showError(SwitcherError.message("Current Account discovery is temporarily blocked because a previous Second Account launch has uncertain ownership. Use Safe Recovery first so the switcher does not mistake an orphaned Second process for Current."))
+            return
+        }
 
         let candidates = currentApps
         if candidates.count == 1 {
