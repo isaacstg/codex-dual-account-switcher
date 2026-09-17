@@ -43,7 +43,7 @@ The opt-in live smoke test also passed on this Mac with exactly one pre-existing
 
 The scratch Second data was retained at `work/live-smoke-20260917` for local inspection. It contains no test login because the smoke test never signs in or reads profile contents.
 
-The locally rebuilt archive checksum was `57172428fbb03e87e63a533e4abb5e7b9f44a0716136a292534554c1632726af`.
+The historical 1.2 archive checksum was `57172428fbb03e87e63a533e4abb5e7b9f44a0716136a292534554c1632726af`.
 
 ## Current-architecture validation still required
 
@@ -53,6 +53,25 @@ The following have not yet been claimed as complete for the Current + Second rev
 2. Launch-at-login, update/fingerprint, interrupted-launch recovery, reset/archive, uninstall/reinstall, and legacy-data upgrade acceptance.
 
 CI cannot prove OAuth behavior, session persistence, or account isolation at runtime.
+
+## Version 1.3 menu-bar revision
+
+The user reported the installed 1.2 workflow works perfectly. This is user acceptance feedback, not an independently observed completion of every release case.
+
+For 1.3.0 (13), local verification passed:
+
+- the unchanged network/credential/process-control source-policy audit;
+- all 47 unit tests, including label saves preserving approval/setup and update confirmation refusing recovery/in-flight lifecycle states;
+- release compilation and strict verification of a freshly extracted ZIP;
+- native popover first-run and ready layouts, Settings, saving names without setup approval, inline invalid-name errors, and Help disclosures;
+- native Shift-Command-B back navigation, Escape dismissal, and app reopening;
+- long labels, simulated pending recovery with disabled account controls, and explicit changed-fingerprint confirmation.
+
+UI tests used only ignored scratch metadata with preview mode enabled. They never launched/focused/quit a live account, registered shortcuts, changed startup settings, or read profile contents. Unavailable-build confirmation gating was unit-tested; the actual installed official app passed its checks, so an unavailable-build native UI case was not claimed.
+
+The redesigned quit/restart confirmations, global-shortcut error presentation, and startup option still require normal installed-app acceptance. The lifecycle and isolation implementation is unchanged except for stricter update-confirmation guards.
+
+The verified local 1.3 ZIP SHA-256 is `5f62a513a08bd935f9e4acbcf8df76f4d50259f9de8c30748f35826c70cb72b6`.
 
 ## Reproduce static validation
 

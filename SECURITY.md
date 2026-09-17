@@ -97,6 +97,14 @@ If the approved fingerprint changes, a new Second launch is blocked until the ch
 
 Static markers/fingerprints are evidence that the expected mechanism still appears to exist; they are not runtime proof of account isolation.
 
+### Plain-language setup and update confirmation
+
+The menu-bar UI calls initial authorization **Set Up Second Account** and changed-version authorization **Confirm ChatGPT Update**. Both re-inspect the installed official app before persisting its fingerprint. These names simplify the presentation without removing explicit approval.
+
+**Save Names** is a separate metadata-only operation. It cannot change the approved fingerprint, app path, schema, or setup state. Confirmation is refused during pending recovery or an in-flight account lifecycle action, and state is checked again after the asynchronous app inspection. A newer version must not be approved to bypass uncertainty about an older running process.
+
+All routine UI lives in an accessory-app popover. Native startup-error dialogs and the app file picker remain OS-provided exceptions. No accessibility permission, event-monitor permission, or new entitlement is required by the redesign.
+
 ## Interrupted launches and recovery
 
 Before LaunchServices is allowed to create Second, the switcher persists a pending marker. Another Second launch is blocked until that state is resolved.

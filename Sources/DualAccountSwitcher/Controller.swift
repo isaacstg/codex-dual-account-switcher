@@ -12,6 +12,8 @@ final class Controller: NSObject, ObservableObject {
     @Published var status: [ProfileID: String] = [.a: "Not running", .b: "Not running"]
     @Published var logs: [String] = []
     @Published var compatibilityText = "Isolation compatibility has not been checked. Current Account can still use the normal official app."
+    @Published private(set) var isolationReadiness: IsolationReadiness = .notChecked
+    @Published private(set) var errorMessage: String?
     @Published var busy = false
     @Published var loginStatus = "Disabled"
 
@@ -27,6 +29,8 @@ final class Controller: NSObject, ObservableObject {
     private var timer: Timer?
     private var cachedReport: CompatibilityReport?
     var onChange: (() -> Void)?
+    var onRequestPresentation: (() -> Void)?
+    var onAccountActivated: (() -> Void)?
 
     init(store: PrivateStore, previewOnly: Bool = false) throws {
         self.previewOnly = previewOnly
@@ -87,6 +91,13 @@ final class Controller: NSObject, ObservableObject {
         officialApps.isEmpty && store.secondaryProfileExists
     }
 
+    var canEditSettings: Bool {
+        !busy && inFlight.isEmpty && shuttingDown.isEmpty
+    }
+
+    // UI-only progress. Pending metadata still blocks ownership and unsafe actions in core.
+    var secondaryIsOpening: Bool { inFlight.contains(.b) }
+
     var unmanagedCount: Int {
         if case .ambiguous(let count) = currentState { return max(0, count - 1) }
         return 0
@@ -107,12 +118,12 @@ final class Controller: NSObject, ObservableObject {
 
     func showError(_ error: Error) {
         log(error.localizedDescription)
-        let alert = NSAlert()
-        alert.messageText = "Action could not be completed"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        errorMessage = error.localizedDescription
+        onRequestPresentation?()
+    }
+
+    func clearError() {
+        errorMessage = nil
     }
 
     // MARK: - Process discovery / ownership
@@ -199,6 +210,7 @@ final class Controller: NSObject, ObservableObject {
                     try store.save(next, name: "settings.json")
                     settings = next
                     cachedReport = nil
+                    isolationReadiness = .notChecked
                     compatibilityText = "Official app was found at \(identity.app.path). Recheck isolation compatibility before launching Second Account."
                     log("Updated the stored official app location after verifying OpenAI's signature.")
                 }
@@ -213,6 +225,7 @@ final class Controller: NSObject, ObservableObject {
     func checkCompatibility() async -> CompatibilityReport? {
         guard !busy else { return cachedReport }
         busy = true
+        isolationReadiness = .checking
         defer { busy = false; refresh() }
         do {
             let identity = try await resolveOfficialIdentity()
@@ -220,6 +233,7 @@ final class Controller: NSObject, ObservableObject {
                 try Compatibility.inspect(identity.app)
             }.value
             cachedReport = report
+            isolationReadiness = .inspected(version: report.version, fingerprint: report.fingerprint, settings: settings)
             compatibilityText = report.summary
             if let approved = settings.approvedFingerprint, approved != report.fingerprint {
                 compatibilityText += "\nThe official app changed. Current Account remains usable, but this build must be approved before launching Second Account."
@@ -229,38 +243,58 @@ final class Controller: NSObject, ObservableObject {
             return report
         } catch {
             cachedReport = nil
+            isolationReadiness = .unavailable(reason: error.localizedDescription)
             compatibilityText = error.localizedDescription
             log("Isolation compatibility check failed: " + error.localizedDescription)
             return nil
         }
     }
 
-    func approveSetup(nameA: String, nameB: String) async {
-        guard !busy, inFlight.isEmpty, shuttingDown.isEmpty else { return }
-        guard let report = await checkCompatibility() else { return }
-
-        let a = nameA.trimmingCharacters(in: .whitespacesAndNewlines)
-        let b = nameB.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !a.isEmpty, !b.isEmpty, a.count <= 40, b.count <= 40, a != b,
-              !a.contains(where: \.isNewline), !b.contains(where: \.isNewline) else {
-            showError(SwitcherError.message("Use two distinct account labels of 1–40 characters."))
-            return
+    /// Explicit setup/update confirmation. Label editing cannot enter this path.
+    @discardableResult
+    func authorizeInstalledBuild() async -> Bool {
+        guard !busy, inFlight.isEmpty, shuttingDown.isEmpty else { return false }
+        refresh()
+        guard secondaryState.allowsBuildConfirmation else {
+            showError(SwitcherError.message("Resolve Second Account recovery before confirming a ChatGPT update. An uncertain running instance must not be trusted by approving a different build."))
+            return false
+        }
+        clearError()
+        // Inspect again at the moment of confirmation, rather than trusting a stale UI report.
+        guard let report = await checkCompatibility() else { return false }
+        refresh()
+        guard secondaryState.allowsBuildConfirmation else {
+            showError(SwitcherError.message("Second Account state changed during the app check. Resolve recovery before confirming this version."))
+            return false
         }
 
         var next = settings
         next.schemaVersion = Settings.currentSchemaVersion
         next.appPath = report.app.path
-        next.nameA = a
-        next.nameB = b
         next.approvedFingerprint = report.fingerprint
         next.setupComplete = true
         do {
             try store.save(next, name: "settings.json")
             settings = next
+            isolationReadiness = .ready(version: report.version)
             compatibilityText = report.summary + "\nApproved for Second Account isolation."
             log("Settings saved. Current Account remains unchanged; Second Account build fingerprint approved.")
             refresh()
-        } catch { showError(error) }
+            return true
+        } catch { showError(error); return false }
+    }
+
+    @discardableResult
+    func saveAccountLabels(current: String, second: String) -> Bool {
+        guard !busy, inFlight.isEmpty, shuttingDown.isEmpty else { return false }
+        do {
+            let next = try settings.renamingAccounts(current: current, second: second)
+            try store.save(next, name: "settings.json")
+            settings = next
+            clearError()
+            log("Account names saved. Isolation approval was not changed.")
+            return true
+        } catch { showError(error); return false }
     }
 
     func chooseApp() {
@@ -272,9 +306,28 @@ final class Controller: NSObject, ObservableObject {
         panel.allowsMultipleSelection = false
         panel.message = "Locate the official ChatGPT.app."
         if panel.runModal() == .OK, let url = panel.url {
-            settings.appPath = url.path
-            cachedReport = nil
-            compatibilityText = "App location changed. Current Account will verify the OpenAI signature before launch. Recheck and approve isolation compatibility for Second Account."
+            Task {
+                busy = true
+                do {
+                    let identity = try await Task.detached(priority: .userInitiated) {
+                        try Compatibility.inspectOfficialIdentity(url)
+                    }.value
+                    var next = settings
+                    next.appPath = identity.app.path
+                    try store.save(next, name: "settings.json")
+                    settings = next
+                    cachedReport = nil
+                    isolationReadiness = .notChecked
+                    busy = false
+                    _ = await checkCompatibility()
+                } catch {
+                    busy = false
+                    showError(error)
+                }
+                onRequestPresentation?()
+            }
+        } else {
+            onRequestPresentation?()
         }
     }
 
@@ -310,6 +363,7 @@ final class Controller: NSObject, ObservableObject {
         let candidates = currentApps
         if candidates.count == 1 {
             runtime.activate(candidates[0])
+            onAccountActivated?()
             return
         }
         guard candidates.isEmpty else {
@@ -330,6 +384,7 @@ final class Controller: NSObject, ObservableObject {
                 throw SwitcherError.message("macOS returned an unexpected process for Current Account. It was not adopted or controlled.")
             }
             runtime.activate(app)
+            onAccountActivated?()
             log("Opened Current Account normally with no CODEX_HOME or Electron profile override.")
         } catch { showError(error) }
     }
@@ -339,6 +394,7 @@ final class Controller: NSObject, ObservableObject {
 
         if let app = verifiedSecondary() {
             runtime.activate(app)
+            onAccountActivated?()
             return
         }
         guard !uncertainty.contains(.b) else {
@@ -356,7 +412,7 @@ final class Controller: NSObject, ObservableObject {
 
         guard let report = await checkCompatibility() else { return }
         guard report.fingerprint == settings.approvedFingerprint else {
-            showError(SwitcherError.message("ChatGPT changed since approval. Current Account remains available, but review and approve the installed build before launching Second Account."))
+            showError(SwitcherError.message("ChatGPT was updated. Choose Confirm ChatGPT Update in the switcher before opening Second Account again."))
             return
         }
 
@@ -399,6 +455,7 @@ final class Controller: NSObject, ObservableObject {
             try store.save([ProfileID](), name: "pending.json")
             uncertainty.remove(.b)
             runtime.activate(app)
+            onAccountActivated?()
             log("Launched Second Account with independent Codex and Electron storage.")
         } catch {
             refresh()

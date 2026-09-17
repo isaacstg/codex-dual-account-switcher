@@ -3,11 +3,12 @@ import SwiftUI
 import SwitcherCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: Controller?
     private var keys: HotKeys?
     private var item: NSStatusItem?
-    private var windows: [String: NSWindow] = [:]
+    private let popover = NSPopover()
+    private let navigation = PopoverNavigation()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
@@ -19,14 +20,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.controller = controller
 
             item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            item?.button?.image = NSImage(systemSymbolName: "person.2.fill", accessibilityDescription: "Codex Account Switcher")
-            item?.button?.toolTip = "Codex Account Switcher"
-            let menu = NSMenu(); menu.delegate = self; item?.menu = menu
+            if let button = item?.button {
+                button.image = NSImage(systemSymbolName: "person.2.fill", accessibilityDescription: "Codex Account Switcher")
+                button.toolTip = "Codex Account Switcher"
+                button.target = self
+                button.action = #selector(togglePopover(_:))
+                button.setAccessibilityLabel("Codex Account Switcher")
+                button.setAccessibilityHelp("Open account switching, settings, and help.")
+            }
+
+            popover.behavior = .transient
+            popover.contentSize = NSSize(width: PopoverPage.width, height: navigation.page.height(for: controller))
+            popover.contentViewController = NSHostingController(rootView: SwitcherPopoverView(
+                controller: controller,
+                navigation: navigation,
+                dismiss: { [weak self] in self?.popover.performClose(nil) }
+            ))
+            navigation.onPageChange = { [weak self, weak controller] page in
+                guard let controller else { return }
+                self?.resizePopover(page: page, controller: controller)
+            }
 
             controller.onChange = { [weak self, weak controller] in
                 guard let controller else { return }
-                self?.item?.button?.toolTip = "Current: \(controller.currentState.displayText) · Second: \(controller.secondaryState.displayText)"
+                self?.item?.button?.toolTip = controller.currentState.isAmbiguous || controller.secondaryState.needsRecovery
+                    ? "Codex Account Switcher · An account needs attention"
+                    : "Switch between \(controller.settings.nameA) and \(controller.settings.nameB)"
+                if let self { self.resizePopover(page: self.navigation.page, controller: controller) }
             }
+            controller.onRequestPresentation = { [weak self] in self?.showPopover() }
+            controller.onAccountActivated = { [weak self] in self?.popover.performClose(nil) }
 
             if !preview { keys = HotKeys() }
             keys?.onPress = { [weak controller] number in
@@ -34,14 +57,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 Task { await controller.open(number == 1 ? .a : .b) }
             }
             for error in keys?.errors ?? [] { controller.log(error) }
-            if !controller.settings.setupComplete { showSetup() }
+            if preview || !controller.settings.setupComplete { showPopover(returnToAccounts: true) }
         } catch {
+            // Startup failures have no controller/popover yet. Keep a native error fallback.
             let alert = NSAlert()
             alert.messageText = "Switcher could not start"
             alert.informativeText = error.localizedDescription
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
             NSApp.terminate(nil)
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPopover(returnToAccounts: !popover.isShown)
+        return true
+    }
+
+    @objc private func togglePopover(_ sender: Any?) {
+        if popover.isShown { popover.performClose(sender) }
+        else { showPopover(returnToAccounts: true) }
+    }
+
+    private func showPopover(returnToAccounts: Bool = false) {
+        guard let button = item?.button, let controller else { return }
+        if returnToAccounts { navigation.page = .accounts }
+        controller.refresh()
+        controller.refreshLogin()
+        NSApp.activate(ignoringOtherApps: true)
+        if !popover.isShown {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+        popover.contentViewController?.view.window?.makeKey()
+        if controller.isolationReadiness == .notChecked && !controller.busy {
+            Task { _ = await controller.checkCompatibility() }
         }
     }
 
@@ -60,182 +109,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         editItem.submenu = edit
         bar.addItem(editItem)
+        let navigationItem = NSMenuItem()
+        let navigate = NSMenu(title: "Navigate")
+        let back = navigate.addItem(withTitle: "Back to Accounts", action: #selector(showAccounts(_:)), keyEquivalent: "b")
+        back.target = self
+        back.keyEquivalentModifierMask = [.shift, .command]
+        navigationItem.submenu = navigate
+        bar.addItem(navigationItem)
         NSApp.mainMenu = bar
     }
 
-    private func symbol(for state: CurrentAccountState) -> String {
-        switch state {
-        case .running: return "●"
-        case .stopped: return "○"
-        case .launching: return "◐"
-        case .ambiguous, .blockedBySecondaryRecovery: return "⚠"
-        }
+    @objc private func showAccounts(_ sender: Any?) {
+        showPopover(returnToAccounts: true)
     }
 
-    private func symbol(for state: SecondaryAccountState) -> String {
-        switch state {
-        case .runningVerified: return "●"
-        case .stopped: return "○"
-        case .launching, .quitting: return "◐"
-        case .ownershipUncertain, .unverifiedLiveProcess: return "⚠"
-        }
-    }
-
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        guard let controller else { return }
-        controller.refresh()
-        let capabilities = controller.capabilities
-        menu.removeAllItems()
-        menu.addItem(NSMenuItem(title: "Codex Account Switcher", action: nil, keyEquivalent: ""))
-
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(
-            title: "\(symbol(for: controller.currentState)) \(controller.settings.name(.a)) — \(controller.currentState.displayText)",
-            action: nil, keyEquivalent: ""
-        ))
-        let current = add("Open / Focus Current Account", action: "open:a", to: menu)
-        current.keyEquivalent = "1"
-        current.keyEquivalentModifierMask = [.option, .command]
-        current.isEnabled = capabilities.canOpenCurrent
-        menu.addItem(NSMenuItem(title: "Existing ChatGPT profile · lifecycle stays with ChatGPT", action: nil, keyEquivalent: ""))
-
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(
-            title: "\(symbol(for: controller.secondaryState)) \(controller.settings.name(.b)) — \(controller.secondaryState.displayText)",
-            action: nil, keyEquivalent: ""
-        ))
-        let second = add("Open / Focus Second Account", action: "open:b", to: menu)
-        second.keyEquivalent = "2"
-        second.keyEquivalentModifierMask = [.option, .command]
-        second.isEnabled = capabilities.canOpenSecond
-        let restart = add("Restart Second Account…", action: "restart:b", to: menu)
-        restart.isEnabled = capabilities.canRestartSecond
-        let quit = add("Quit Second Account…", action: "quit:b", to: menu)
-        quit.isEnabled = capabilities.canQuitSecond
-
-        if capabilities.canRecoverSecond {
-            add("Recover Second Account…", action: "recover", to: menu)
-        }
-
-        menu.addItem(.separator())
-        let both = add("Open Both", action: "both", to: menu)
-        both.isEnabled = capabilities.canOpenBoth
-
-        switch controller.currentState {
-        case .ambiguous:
-            menu.addItem(NSMenuItem(title: "⚠ Multiple default ChatGPT instances · Current focus disabled", action: nil, keyEquivalent: ""))
-        case .blockedBySecondaryRecovery:
-            menu.addItem(NSMenuItem(title: "⚠ Current discovery paused until Second recovery completes", action: nil, keyEquivalent: ""))
-        default:
-            break
-        }
-        if controller.secondaryState.needsRecovery {
-            menu.addItem(NSMenuItem(title: "⚠ Second Account needs safe recovery before relaunch", action: nil, keyEquivalent: ""))
-        }
-
-        menu.addItem(.separator())
-        add("Settings & Compatibility…", action: "setup", to: menu)
-        controller.refreshLogin()
-        add("Startup at Login · " + controller.loginStatus, action: "login", to: menu)
-        add("Diagnostics & Recovery…", action: "diagnostics", to: menu)
-        add("Uninstall Instructions…", action: "uninstall", to: menu)
-        menu.addItem(.separator())
-        add("Quit Switcher (accounts keep running)", action: "exit", to: menu)
-    }
-
-    @discardableResult
-    private func add(_ title: String, action: String, to menu: NSMenu) -> NSMenuItem {
-        let entry = NSMenuItem(title: title, action: #selector(performAction(_:)), keyEquivalent: "")
-        entry.target = self
-        entry.representedObject = action
-        menu.addItem(entry)
-        return entry
-    }
-
-    @objc private func performAction(_ sender: NSMenuItem) {
-        guard let action = sender.representedObject as? String, let controller else { return }
-        let parts = action.split(separator: ":")
-        if parts.count == 2, let id = ProfileID(rawValue: String(parts[1])) {
-            switch parts[0] {
-            case "open":
-                Task { await controller.open(id) }
-            case "quit", "restart":
-                guard id == .b else { return }
-                let isQuit = parts[0] == "quit"
-                let alert = NSAlert()
-                alert.messageText = "\(isQuit ? "Quit" : "Restart") Second Account?"
-                alert.informativeText = "Save any work in the isolated account first. Your Current Account is not affected."
-                alert.addButton(withTitle: "Cancel")
-                alert.addButton(withTitle: isQuit ? "Quit Second Account" : "Restart Second Account")
-                NSApp.activate(ignoringOtherApps: true)
-                if alert.runModal() == .alertSecondButtonReturn {
-                    Task {
-                        if isQuit { _ = await controller.quit(.b) }
-                        else { await controller.restart(.b) }
-                    }
-                }
-            default:
-                break
-            }
-            return
-        }
-
-        switch action {
-        case "both":
-            Task { await controller.openBoth() }
-        case "recover":
-            confirmRecovery(controller)
-        case "setup":
-            showSetup()
-        case "diagnostics":
-            show("diagnostics", title: "Switcher Diagnostics & Recovery", content: DiagnosticsView(controller: controller))
-        case "uninstall":
-            show("uninstall", title: "Safe Uninstall", content: UninstallView(controller: controller))
-        case "login":
-            controller.toggleLogin()
-        case "exit":
-            NSApp.terminate(nil)
-        default:
-            break
-        }
-    }
-
-    private func confirmRecovery(_ controller: Controller) {
-        let alert = NSAlert()
-        alert.messageText = "Recover Second Account?"
-        alert.informativeText = "If a verified Second Account receipt exists, recovery will re-check the approved isolation fingerprint before trusting it. Otherwise recovery only proceeds after all official ChatGPT instances are closed, so the switcher never guesses process ownership."
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Try Safe Recovery")
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertSecondButtonReturn {
-            Task { await controller.resolveInterruptedLaunches() }
-        }
-    }
-
-    private func showSetup() {
-        if let controller { show("setup", title: "Settings & Compatibility", content: SetupView(controller: controller)) }
-    }
-
-    private func show<V: View>(_ key: String, title: String, content: V) {
-        if let window = windows[key] {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        let view = NSHostingView(rootView: content)
-        let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: view.fittingSize),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = view
-        window.title = (controller?.previewOnly == true ? "UI Preview · " : "") + title
-        window.isReleasedWhenClosed = false
-        window.center()
-        windows[key] = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+    private func resizePopover(page: PopoverPage, controller: Controller) {
+        let size = NSSize(width: PopoverPage.width, height: page.height(for: controller))
+        if popover.contentSize != size { popover.contentSize = size }
     }
 }
 

@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Switcher version and build
-      placeholder: "1.2.0 (12)"
+      placeholder: "1.3.0 (13)"
     validations:
       required: true
   - type: input

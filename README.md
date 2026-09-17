@@ -26,10 +26,15 @@ Your current installation is not cloned, migrated, rewritten, imported, or repla
 
 ## Daily use
 
+Click the two-person menu-bar icon for a compact popover. Everything lives there, including Settings and Help; there are no detached settings windows or Dock icon.
+
 - **⌥⌘1** — open/focus Current Account.
 - **⌥⌘2** — open/focus Second Account.
 - **Open Both** — ensure both are open when both states are safe.
-- The menu bar shows explicit state for each account.
+- Account cards show your labels and Running, Closed, or Needs attention.
+- Second's **More** menu contains graceful quit/restart and is shown only with verified ownership.
+
+Successful switching dismisses the popover. Errors reopen it with an inline explanation. Escape or a click outside dismisses it; Shift-Command-B returns from Settings/Help to Accounts while the switcher is active.
 
 If Current is already open, the switcher focuses it. If it is closed, the official app is opened normally with no profile overrides.
 
@@ -41,11 +46,14 @@ Repeated shortcut/menu requests are guarded by per-account in-flight state so an
 
 1. Put `Codex Account Switcher.app` in `/Applications` or `~/Applications`.
 2. Open it. It appears in the menu bar and has no Dock icon.
-3. The switcher uses the configured official ChatGPT app, normally `/Applications/ChatGPT.app`. It can also recover the standard `~/Applications/ChatGPT.app` location after verifying OpenAI's signature.
-4. Run **Second Account compatibility** and approve the installed build.
-5. Optionally rename the two menu labels.
-6. Click **Open Second Account** and sign into your other ChatGPT account.
-7. Verify the intended account is displayed in each official ChatGPT window.
+3. The switcher automatically checks the official ChatGPT app, normally `/Applications/ChatGPT.app`. It can also recover the standard `~/Applications/ChatGPT.app` location after verifying OpenAI's signature.
+4. Click **Set Up Second Account**. This confirms the checked app version and opens a separate ChatGPT window.
+5. Sign into your other account in that window and verify the intended account appears in each window.
+6. Optionally use **Settings → Save Names** to rename the cards, for example Personal and Work.
+
+Saving names changes labels only. It never confirms an app version, moves account data, or changes setup status. App location and rechecking are under Settings → App details.
+
+After a ChatGPT update, the switcher checks the new version before a new Second launch. If the setup checks pass, **Confirm ChatGPT Update** explains and confirms the changed version. Confirmation remains explicit; failed checks or pending recovery cannot be bypassed by this action.
 
 Current Account does **not** need the Second Account compatibility fingerprint in order to open. It only needs the selected app to verify as the genuine expected OpenAI app.
 
@@ -122,7 +130,7 @@ Dead, strongly stale Second receipts can be cleared automatically when no uncert
 
 ## Fresh Second Account / reset
 
-Diagnostics includes **Archive & Reset** for Second Account.
+Help → Second Account data includes **Archive & Reset** for Second Account.
 
 For maximum safety it is enabled only when:
 
@@ -174,7 +182,7 @@ See `SECURITY.md` for the detailed threat model.
 
 ## Diagnostics
 
-Diagnostics shows switcher-owned state such as:
+Help → Troubleshooting details shows switcher-owned state such as:
 
 - switcher version/build and settings schema;
 - Current/Second process state;
@@ -191,11 +199,13 @@ It deliberately does not collect account identity or authentication data. **Copy
 
 Startup at Login is opt-in. It starts the switcher itself, not both ChatGPT accounts automatically.
 
+The option lives in Settings as **Start switcher at login**.
+
 ## Uninstall
 
-1. Finish work in Second and quit it from the switcher.
-2. Disable Startup at Login.
-3. Quit the switcher.
+1. Finish work in Second and quit it from its More menu.
+2. Disable Start switcher at login in Settings.
+3. Quit the switcher from Help.
 4. Move `Codex Account Switcher.app` to Trash.
 
 Current ChatGPT is unaffected. Second-account data is preserved by default at:
@@ -223,6 +233,7 @@ Repository design/status documents:
 - `docs/IMPLEMENTATION_STATUS.md`
 - `docs/STATE_MACHINE.md`
 - `docs/PUBLIC_RELEASE_CHECKLIST.md`
+- `docs/UX_IMPROVEMENT_PLAN.md`
 - `VALIDATION.md`
 
 Typical local validation after checking out the repository:
@@ -252,3 +263,5 @@ The project was inspired by the general idea of multi-account Codex switchers, i
 ## License
 
 MIT. See `LICENSE`.
+
+Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).

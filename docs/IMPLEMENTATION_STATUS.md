@@ -2,6 +2,21 @@
 
 Last reconciled against `main` after the Current + Second live smoke validation.
 
+## 1.3 menu-bar revision
+
+Implemented and locally validated:
+
+- Native Accounts/Settings/Help popover; no detached settings or diagnostic windows.
+- Two account cards, Open Both, and a verified-Second-only More menu.
+- Automatic app checking with plain-language setup/update confirmation.
+- Label-only saves, inline errors, close-after-switch callbacks, recovery guidance, and grouped diagnostics/data/uninstall tools.
+- Version 1.3.0 (13), native keyboard back navigation, accessibility labels, and compact/long-label layouts.
+- Source audit, 47 passing unit tests, native scratch preview, release build, and extracted-bundle signature verification.
+
+Native preview exercised first run, ready state, saved/invalid names, Help details, keyboard back, Escape dismissal/reopen, long labels, simulated pending recovery, and a simulated changed fingerprint. Preview never launched an account or changed login items. The original 1.2 daily workflow was reported by the user as working perfectly; the detailed signed-in release matrix is still distinct from that report.
+
+See `docs/UX_IMPROVEMENT_PLAN.md` for the implemented scope and prioritized proposals. CI evidence for the new revision must be recorded only after its jobs complete.
+
 ## Product invariant
 
 Current Account is the user's normal official ChatGPT/Codex profile. It is never switcher-owned or destructively controlled. Second Account is the sole isolated profile and may be controlled only with a verified receipt.
@@ -33,7 +48,6 @@ The disposable smoke profile remains in an ignored local `work/` directory. It w
 - Signed-in dual-account persistence and OAuth behavior.
 - Hotkeys, repeated Open Both, graceful Second quit/restart, and switcher restart with both processes alive.
 - Interrupted launch, stale receipt, changed fingerprint, moved app, reset/archive, login-item, uninstall/reinstall, and legacy-data upgrade acceptance.
-- Final archive extraction and signature verification.
 
 ## Deliberately deferred
 
