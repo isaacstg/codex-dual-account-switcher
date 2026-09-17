@@ -9,28 +9,29 @@ final class CoreTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: base) }
         return base.appendingPathComponent("private")
     }
-    func testBothProfilesHaveSeparateCodexAndElectronDirectories() {
+
+    func testSecondAccountLaunchPlanIsIsolatedAndAllowlisted() {
         let root = URL(fileURLWithPath: "/Users/test/Library/Application Support/Switcher")
-        let a = ProfilePaths(root: root, id: .a), b = ProfilePaths(root: root, id: .b)
-        XCTAssertEqual(Set([a.home.path, a.electron.path, b.home.path, b.electron.path]).count, 4)
-        XCTAssertFalse(a.home.path.contains("/.codex"))
-        for paths in [a, b] {
-            let plan = LaunchPlan(paths: paths, userHome: URL(fileURLWithPath: "/Users/test"), username: "test", temporaryDirectory: "/tmp/test")
-            XCTAssertEqual(plan.environment["CODEX_HOME"], paths.home.path)
-            XCTAssertEqual(plan.environment["CODEX_ELECTRON_USER_DATA_PATH"], paths.electron.path)
-            XCTAssertEqual(plan.arguments, ["--user-data-dir=" + paths.electron.path])
-            XCTAssertEqual(Set(plan.environment.keys), Set(["HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "CODEX_HOME", "CODEX_ELECTRON_USER_DATA_PATH"]))
-        }
+        let paths = ProfilePaths(root: root, id: .b)
+        let plan = LaunchPlan(paths: paths, userHome: URL(fileURLWithPath: "/Users/test"), username: "test", temporaryDirectory: "/tmp/test")
+        XCTAssertEqual(plan.environment["CODEX_HOME"], paths.home.path)
+        XCTAssertEqual(plan.environment["CODEX_ELECTRON_USER_DATA_PATH"], paths.electron.path)
+        XCTAssertEqual(plan.arguments, ["--user-data-dir=" + paths.electron.path])
+        XCTAssertEqual(Set(plan.environment.keys), Set(["HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "CODEX_HOME", "CODEX_ELECTRON_USER_DATA_PATH"]))
+        XCTAssertNil(plan.environment["OPENAI_API_KEY"])
+        XCTAssertNil(plan.environment["NODE_OPTIONS"])
+        XCTAssertFalse(plan.environment.keys.contains { $0.hasPrefix("DYLD_") })
     }
-    func testOwnershipRejectsPIDReuseWrongUIDExecutableAndProfilePaths() {
+
+    func testSecondaryOwnershipRejectsPIDReuseWrongUIDExecutableAndProfilePaths() {
         let root = URL(fileURLWithPath: "/Users/test/private")
-        let paths = ProfilePaths(root: root, id: .a)
+        let paths = ProfilePaths(root: root, id: .b)
         let stamp = ProcessStamp(pid: 42, uid: 501, seconds: 100, microseconds: 1, executable: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT")
-        let receipt = LaunchReceipt(profile: .a, stamp: stamp, paths: paths)
+        let receipt = LaunchReceipt(profile: .b, stamp: stamp, paths: paths)
         XCTAssertTrue(receipt.owns(stamp, paths: paths, uid: 501))
         XCTAssertFalse(receipt.owns(nil, paths: paths, uid: 501))
         XCTAssertFalse(receipt.owns(stamp, paths: paths, uid: 502))
-        XCTAssertFalse(receipt.owns(stamp, paths: ProfilePaths(root: root, id: .b), uid: 501))
+        XCTAssertFalse(receipt.owns(stamp, paths: ProfilePaths(root: root, id: .a), uid: 501))
         for changed in [ProcessStamp(pid: 42, uid: 501, seconds: 101, microseconds: 1, executable: stamp.executable),
                         ProcessStamp(pid: 42, uid: 501, seconds: 100, microseconds: 2, executable: stamp.executable),
                         ProcessStamp(pid: 42, uid: 502, seconds: 100, microseconds: 1, executable: stamp.executable),
@@ -38,6 +39,7 @@ final class CoreTests: XCTestCase {
             XCTAssertFalse(receipt.owns(changed, paths: paths, uid: 501))
         }
     }
+
     func testLaunchCannotAdoptNormallyLaunchedOrOldInstance() {
         let stamp = ProcessStamp(pid: 42, uid: 501, seconds: 100, microseconds: 1, executable: "/official")
         XCTAssertTrue(LaunchReceipt.canAdopt(stamp, launchedAfter: 99, executable: "/official", uid: 501, existingPIDs: []))
@@ -45,12 +47,13 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(LaunchReceipt.canAdopt(stamp, launchedAfter: 99, executable: "/official", uid: 501, existingPIDs: [42]))
         XCTAssertFalse(LaunchReceipt.canAdopt(stamp, launchedAfter: 99, executable: "/other", uid: 501, existingPIDs: []))
     }
+
     func testMetadataRoundtripAndPrivatePermissions() throws {
         let root = try temporaryRoot(); let store = try PrivateStore(root: root)
         try store.acquireLock(); try store.save(Settings(), name: "settings.json")
         let settings = try XCTUnwrap(store.load(Settings.self, name: "settings.json"))
         XCTAssertFalse(settings.setupComplete)
-        let paths = try store.prepare(.a)
+        let paths = try store.prepare(.b)
         for url in [root, paths.home, paths.electron] {
             let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
             XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o700)
@@ -58,10 +61,12 @@ final class CoreTests: XCTestCase {
         let attrs = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("settings.json").path)
         XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o600)
     }
+
     func testSecondControllerCannotAcquireLock() throws {
         let root = try temporaryRoot(); let first = try PrivateStore(root: root); try first.acquireLock()
         let second = try PrivateStore(root: root); XCTAssertThrowsError(try second.acquireLock())
     }
+
     func testSymlinkAndHardlinkMetadataRejectedWithoutTouchingDestination() throws {
         let root = try temporaryRoot(); let store = try PrivateStore(root: root)
         let target = root.deletingLastPathComponent().appendingPathComponent("sentinel")
@@ -74,14 +79,16 @@ final class CoreTests: XCTestCase {
         try FileManager.default.linkItem(at: target, to: metadata)
         XCTAssertThrowsError(try store.load(Settings.self, name: "settings.json"))
     }
-    func testRedirectedProfileDirectoryRejected() throws {
+
+    func testRedirectedSecondaryProfileDirectoryRejected() throws {
         let root = try temporaryRoot(); let store = try PrivateStore(root: root)
         let outside = root.deletingLastPathComponent().appendingPathComponent("outside")
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("Profiles"), withDestinationURL: outside)
-        XCTAssertThrowsError(try store.prepare(.a))
+        XCTAssertThrowsError(try store.prepare(.b))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outside.path), [])
     }
+
     func testCorruptMetadataIsNotSilentlyReset() throws {
         let root = try temporaryRoot(); let store = try PrivateStore(root: root)
         let file = root.appendingPathComponent("settings.json")
@@ -89,11 +96,13 @@ final class CoreTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
         XCTAssertThrowsError(try store.load(Settings.self, name: "settings.json"))
     }
+
     func testUnknownMetadataFileCannotReadProfileCredentials() throws {
         let store = try PrivateStore(root: temporaryRoot())
-        XCTAssertThrowsError(try store.load(Settings.self, name: "Profiles/a/codex/auth.json"))
+        XCTAssertThrowsError(try store.load(Settings.self, name: "Profiles/b/codex/auth.json"))
         XCTAssertThrowsError(try store.save(Settings(), name: "../elsewhere"))
     }
+
     func testUnsignedAppRejected() throws {
         let root = try temporaryRoot().deletingLastPathComponent()
         let app = root.appendingPathComponent("Fake.app/Contents")
@@ -102,13 +111,16 @@ final class CoreTests: XCTestCase {
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: app.appendingPathComponent("Info.plist"))
         XCTAssertThrowsError(try Compatibility.inspect(root.appendingPathComponent("Fake.app")))
     }
+
     func testInvalidPIDHasNoSnapshot() { XCTAssertNil(ProcessStamp.read(pid: -1)); XCTAssertNil(ProcessStamp.read(pid: 0)) }
-    func testPendingLaunchSurvivesControllerRestart() throws {
+
+    func testPendingSecondLaunchSurvivesControllerRestart() throws {
         let root = try temporaryRoot(); let first = try PrivateStore(root: root)
-        try first.save([ProfileID.a], name: "pending.json")
+        try first.save([ProfileID.b], name: "pending.json")
         let restored = try PrivateStore(root: root)
-        XCTAssertEqual(try restored.load([ProfileID].self, name: "pending.json"), [.a])
+        XCTAssertEqual(try restored.load([ProfileID].self, name: "pending.json"), [.b])
     }
+
     func testCompletionGateResolvesExactlyOnceUnderConcurrentCallbacks() {
         let lock = NSLock(); var count = 0
         let gate = CompletionGate<Int> { _ in lock.lock(); count += 1; lock.unlock() }
@@ -116,6 +128,7 @@ final class CoreTests: XCTestCase {
         gate.complete(.failure(SwitcherError.message("late timeout")))
         XCTAssertEqual(count, 1)
     }
+
     func testKernelSnapshotOfThisProcessIsStable() throws {
         let first = try XCTUnwrap(ProcessStamp.read(pid: getpid()))
         XCTAssertEqual(first.uid, getuid())
