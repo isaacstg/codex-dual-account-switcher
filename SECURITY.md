@@ -1,39 +1,147 @@
-# Security model
+# Security Model
 
-The switcher is a local controller for two copies of the unchanged, OpenAI-signed Electron-based ChatGPT/Codex application. It is not an identity provider, a token manager, an app sandbox, or an official OpenAI product.
+## Scope
 
-## Assets and trust boundaries
+Codex Account Switcher provides **profile separation**, not a macOS security sandbox.
 
-Protect account credentials, profile storage, existing default ChatGPT/Codex sessions, unfinished account work, and the integrity of the official application. Trust macOS, the user's account, Apple's local signing validation, and the official application to honor its profile configuration. The official app, its extensions, app server, shell configuration and browser sign-in are outside this utility's trust boundary.
+The design has two different trust/ownership roles:
 
-An attacker who already controls the same macOS user can read their files, alter switcher metadata, replace this unsigned-development utility, and control their processes. Directory permissions and safe metadata handling reduce accidents and attacks from other users; they cannot contain same-user malware or a root attacker.
+- **Current account:** the user's ordinary official ChatGPT/Codex profile. The switcher may discover, open and focus it, but intentionally does not own its lifecycle.
+- **Second account:** an official ChatGPT instance launched with separate Electron and Codex directories. The switcher may focus, gracefully quit or restart it only while strong process ownership can be proven.
 
-## Invariants
+Both instances still execute as the same macOS user and therefore share that user's OS-level permissions, Keychain namespace, shell configuration, browser/OAuth environment and other resources. The switcher does not claim to protect one account from a malicious application running as the same user.
 
-1. No runtime networking, telemetry, updater, embedded web view, remote command input, or downloaded code. Security.framework is used **only** for static signature checks with `SecCSFlags.noNetworkAccess`: online revocation/notarization queries are disabled for those checks. macOS's normal Gatekeeper policy remains in force. The official ChatGPT app uses the network normally.
-2. No Keychain credential API, token file access, credential migration, browser-store access, password prompt, process argv inspection, or process environment inspection. The controller does not know which email is signed in. Labels are user-defined descriptions.
-3. Both profiles receive a distinct `CODEX_HOME`, a distinct `CODEX_ELECTRON_USER_DATA_PATH`, and the same explicit Electron path through `--user-data-dir`. Neither shares `~/.codex` or default Electron storage. `HOME` remains the user's real home: projects, shell configuration, OS Keychain namespace and user permissions are not isolated.
-4. Launch configuration uses an explicit environment allowlist. No current process environment is read or copied. OpenAI's app can subsequently load its own shell environment; this utility cannot stop upstream code or user shell scripts from reading credentials. Static checks do not establish complete runtime isolation.
-5. Only the official `com.openai.codex` application signed by team `2DC432GLL2` may launch. Full static signature validation is required; invalid signatures or missing expected Electron bootstrap indicators block launch. Legitimate signing or packaging changes require a reviewed code update; there is no bypass toggle.
-6. Process ownership comes from a newly launched NSWorkspace instance, not a name match. Its receipt binds profile, UID, PID, exact executable path, and kernel start time (seconds and microseconds). A normal/default instance is never adopted. BSD metadata is checked before and after executable-path retrieval. Restoring a receipt requires the same snapshot and fixed profile paths.
-7. The writer holds a nonblocking `flock` across its lifetime. Metadata is limited to settings, receipts, and pending attempts, saved atomically with mode 0600. The profile root and created subdirectories have mode 0700. Existing symlink ancestors, redirected profile directories, non-regular metadata, foreign-owned metadata, and hardlinked metadata are rejected. Paths are not a configurable per-profile feature. Same-user concurrent filesystem tampering remains out of scope; the checks are not a filesystem sandbox.
-8. Intent is persisted before launch. A crash, ambiguous response, timeout, failed receipt save, or app replacement during launch leaves a pending marker. It blocks retries across controller restarts. Recovery requires an explicit Diagnostics action after ALL official instances are closed. An updater-created replacement process is not silently adopted.
-9. Quit uses `NSRunningApplication.terminate()` for a currently verified owned app. There is no force-kill, name-based kill, helper-process kill, or admin escalation. A rejected or slow quit cancels restart. Native termination is not guaranteed to save unfinished work; the menu warns before quit/restart.
-10. Login startup uses `SMAppService.mainApp`, only after the user opts in from an installed app bundle. No LaunchAgent plist, daemon, admin helper, Accessibility permission, Full Disk Access, or Input Monitoring permission is requested. Carbon registers only two fixed shortcuts.
-11. Official app bundles and Dock preferences are never written, copied, re-signed, or patched. The build script ad-hoc signs only our newly built controller bundle.
-12. Diagnostics contain bounded memory-only switcher events and process metadata. No official app stdout/stderr or profile logs are read. Diagnostic display can reveal local paths and PIDs; sharing it is the user's choice. There is no automatic upload.
-13. Safe uninstall unregisters the login item and removes only the controller through Finder's Trash. Profile data remains. There is no automatic data purge in the app.
+## Security invariants
 
-## Update policy and limits
+1. The official `ChatGPT.app` is never modified, patched, copied, re-signed, injected into, or rewritten.
+2. Current uses normal/default ChatGPT storage and normal `~/.codex`.
+3. Only Second receives private Electron/Codex storage overrides.
+4. Authentication tokens, cookies, browser stores, account identities and Keychain credentials are never copied, parsed, migrated or inspected.
+5. The switcher does not inspect another process's argv or environment.
+6. The switcher does not use networking.
+7. The switcher does not execute a shell/subprocess to control ChatGPT.
+8. Current is never destructively controlled by the switcher.
+9. Second is never destructively controlled unless ownership is positively verified.
+10. ChatGPT is never force-killed.
+11. Ambiguity fails closed: the switcher blocks/asks for manual resolution rather than guessing.
 
-The build fingerprint is SHA-256 over Info.plist, the main executable, and app.asar. Every new launch revalidates the full signature, indicators and fingerprint. A changed build requires user review in Setup & Compatibility. Signature and fingerprint are rechecked after launch to detect replacement during launch. Focus and graceful quit remain available for an already verified process after a disk update; a respawned process without a receipt is unmanaged.
+## Current-account discovery
 
-The indicator checks look for the profile override in the packaged Electron bootstrap and CODEX_HOME support in the archive. They are conservative compatibility heuristics, not a proof that an upstream update implements isolation correctly. They may block a compatible packaging change or accept a behavior change that still contains those strings. Multi-instance behavior, external OAuth callbacks, deep links, OS-level Keychain use, shared shell settings and auto-update interactions need manual validation. Absolute containment requires separate macOS user accounts or virtual machines.
+The switcher enumerates running applications with the official ChatGPT bundle identifier. It does not inspect credentials or private profile contents to identify accounts.
 
-The local app build is ad-hoc signed, not Developer ID notarized. Wider distribution requires an authorized Developer ID certificate and Apple's notarization process. No signing credentials are bundled or requested by this repository. Never disable Gatekeeper to run an unknown download.
+If Second ownership is positively verified, only that exact PID is excluded from the set of default candidates.
 
-## Verification
+- 0 remaining candidates: Current is considered not running.
+- 1 remaining candidate: it may be focused as Current.
+- More than 1: Current is ambiguous and focus-by-discovery is blocked.
 
-`python3 scripts/audit.py` guards against prohibited source APIs. Unit tests cover disjoint profile configuration, environment allowlist, stale/PID-reused/default process rejection, private file permissions, writer locking, metadata corruption, path traversal and symlink/hardlink rejection. CI builds and tests on two macOS runners with read-only GitHub permissions. Manual review must additionally trace every filesystem read, launch and termination path. Opt-in smoke testing launches only fresh temporary official profiles and verifies that an existing normal instance survives.
+This means the switcher can occasionally require manual cleanup when multiple normal ChatGPT instances exist. That inconvenience is intentional; choosing a process heuristically would weaken the ownership boundary.
 
-Report suspected defects privately to the repository owner through the private repository. Do not post tokens, profile databases, session logs, or full environment dumps. Provide the switcher version, official app version, a redacted diagnostic excerpt, and reproduction steps.
+## Second-account isolation
+
+Second uses switcher-private paths under:
+
+```text
+~/Library/Application Support/Codex Dual Account Switcher/Profiles/b/
+```
+
+Its launch receives an allowlisted environment plus:
+
+```text
+CODEX_HOME=<private>/Profiles/b/codex
+CODEX_ELECTRON_USER_DATA_PATH=<private>/Profiles/b/electron
+--user-data-dir=<private>/Profiles/b/electron
+```
+
+The switcher does not forward arbitrary environment variables. In particular, inherited API keys/tokens, `NODE_OPTIONS`, `DYLD_*` and Electron debugging variables are not intentionally forwarded.
+
+## Process ownership
+
+A Second launch receipt records only switcher-owned process metadata:
+
+- profile role (`b`);
+- PID;
+- UID;
+- kernel process start time;
+- executable path;
+- expected private Codex/Electron paths.
+
+Ownership requires the current kernel snapshot to exactly match the receipt and the current macOS user. This rejects stale PIDs, PID reuse, wrong users, wrong executable paths and receipts for different private paths.
+
+A launch is adopted only when it is a newly observed process, starts after the launch request, runs as the current user and has the expected official executable path.
+
+The receipt does not prove that the application internally honored every storage override. That is why compatibility validation and the separate opt-in smoke test remain necessary.
+
+## Interrupted launches
+
+Before Second is launched, a pending marker is persisted. If launch completion cannot be safely proven, that marker remains and another launch is blocked.
+
+Recovery requires all official ChatGPT instances to be closed manually. The recovery operation clears switcher ownership/pending metadata only; it does not delete account/profile contents.
+
+A clearly dead stale receipt may be removed automatically. A live process whose identity no longer matches the receipt is not terminated or adopted.
+
+## Legacy migration
+
+Older builds treated both A and B as isolated profiles. New builds discard A process receipts and A pending markers because A now means Current/default.
+
+Migration is metadata-only. Legacy A directories are deliberately left on disk and their contents are not read. Valid B metadata is retained. Duplicate B ownership receipts are treated as invalid metadata rather than guessed through.
+
+## Private filesystem storage
+
+Switcher metadata and isolated Second directories use restrictive POSIX permissions. Metadata writes use the existing hardened `PrivateStore` behavior to reject unsafe names and redirected/symlinked paths and to avoid following unsafe metadata links.
+
+The controller lock prevents two switcher controllers from concurrently managing the same private root.
+
+These defenses reduce accidental/cross-process corruption but are not a defense against a fully malicious process running with the same macOS user privileges.
+
+## Compatibility validation
+
+The switcher validates the selected official app before approving isolated-account operation. The compatibility layer checks the expected official bundle/signature properties and the markers required by the isolation mechanism, then fingerprints relevant installed-app material.
+
+If the approved fingerprint changes, Second launching is blocked until the changed build is reviewed and explicitly approved.
+
+Compatibility checks are evidence that the expected mechanism still appears to exist; they are not proof of runtime account isolation.
+
+## Graceful termination only
+
+The switcher calls the normal application termination request only for a verified Second process. It waits for graceful exit and cancels restart after timeout. It never escalates to a forced kill.
+
+Current must be quit/restarted from the official ChatGPT app itself.
+
+## Logging and diagnostics
+
+Logs are bounded and memory-only. Diagnostic output contains switcher state, app/compatibility metadata, process status and private-root location.
+
+It must not contain:
+
+- account email/name/identity discovered from ChatGPT;
+- auth tokens;
+- cookies/browser stores;
+- Keychain credential values;
+- ChatGPT application logs;
+- another process's environment or command-line arguments.
+
+`Copy Diagnostics` copies only this switcher-generated text.
+
+## Source policy audit
+
+`scripts/audit.py` is a guardrail that rejects source patterns associated with networking, credential APIs/files, process environment/argv inspection, shell execution, destructive/privileged process APIs and app/Dock mutation.
+
+It is intentionally not presented as a formal security proof. Human review, unit tests, app-signature validation and runtime smoke validation are separate layers.
+
+## Threats deliberately not solved
+
+The switcher does not attempt to defend against:
+
+- malware or a malicious account with the same macOS user privileges;
+- the official app intentionally reading shared OS resources;
+- browser OAuth choosing the wrong browser account;
+- upstream changes that defeat isolation despite retaining static markers;
+- compromise of the user's macOS account;
+- a malicious replacement application explicitly approved by the user outside the switcher's intended workflow.
+
+Users should verify the displayed ChatGPT account before sensitive work, especially immediately after signing in or after an app update.
+
+## Reporting
+
+Do not include real authentication tokens, cookies, account exports or other secrets in bug reports. Prefer the switcher's generated diagnostics and a description of the observed behavior.
