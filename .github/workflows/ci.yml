@@ -25,3 +25,21 @@ jobs:
         run: swift test
       - name: Build and verify our app bundle
         run: scripts/build.sh
+      - name: Write build provenance
+        run: |
+          shasum -a 256 dist/Codex-Account-Switcher.zip > dist/SHA256SUMS.txt
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "runner=${RUNNER_OS}"
+            sw_vers
+          } > dist/BUILD_INFO.txt
+      - name: Upload personal-build archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Codex-Account-Switcher-${{ matrix.runner }}-${{ github.sha }}
+          path: |
+            dist/Codex-Account-Switcher.zip
+            dist/SHA256SUMS.txt
+            dist/BUILD_INFO.txt
+          if-no-files-found: error
+          retention-days: 14
