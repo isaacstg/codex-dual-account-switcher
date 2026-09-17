@@ -5,7 +5,7 @@ import ServiceManagement
 import SwitcherCore
 
 @MainActor
-final class Controller: ObservableObject {
+final class Controller: NSObject, ObservableObject {
     @Published var settings: Settings
     @Published private(set) var currentState: CurrentAccountState = .stopped
     @Published private(set) var secondaryState: SecondaryAccountState = .stopped
@@ -53,12 +53,24 @@ final class Controller: ObservableObject {
         if loadedPending != migratedPending { try store.save(migratedPending, name: "pending.json") }
         if loadedReceipts != migratedReceipts { try store.save(migratedReceipts, name: "receipts.json") }
 
+        super.init()
+
         refresh()
         refreshLogin()
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
+        // Selector-based scheduling avoids the Swift 6 sendability diagnostic produced by
+        // Timer's closure overload on the macOS 14 GitHub Actions toolchain.
+        timer = Timer.scheduledTimer(timeInterval: 2,
+                                     target: self,
+                                     selector: #selector(refreshTimerFired(_:)),
+                                     userInfo: nil,
+                                     repeats: true)
         log("Controller ready. Current Account uses normal ChatGPT storage; Second Account alone is isolated. No credentials were read or copied.")
+    }
+
+    deinit { timer?.invalidate() }
+
+    @objc private func refreshTimerFired(_ timer: Timer) {
+        refresh()
     }
 
     // MARK: - Public derived state
