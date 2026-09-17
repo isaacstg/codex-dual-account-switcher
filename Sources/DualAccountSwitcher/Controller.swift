@@ -33,6 +33,9 @@ final class Controller: ObservableObject {
         self.store = store
 
         var loadedSettings = try store.load(Settings.self, name: "settings.json") ?? Settings()
+        if loadedSettings.isFromFutureVersion {
+            throw SwitcherError.message("These settings were written by a newer Codex Account Switcher version. Install that version (or newer) instead of downgrading, so unknown settings are not discarded.")
+        }
         if loadedSettings.needsSchemaRewrite {
             loadedSettings.schemaVersion = Settings.currentSchemaVersion
             try store.save(loadedSettings, name: "settings.json")
@@ -68,7 +71,8 @@ final class Controller: ObservableObject {
 
     var canResetSecond: Bool {
         !previewOnly && !busy && !inFlight.contains(.b) && !shuttingDown.contains(.b) &&
-        uncertainty.isEmpty && receipts.isEmpty && secondaryState == .stopped && store.secondaryProfileExists
+        uncertainty.isEmpty && receipts.isEmpty && secondaryState == .stopped &&
+        officialApps.isEmpty && store.secondaryProfileExists
     }
 
     var unmanagedCount: Int {
@@ -371,12 +375,13 @@ final class Controller: ObservableObject {
             receipts = [receipt]
 
             // If an updater swaps the bundle during launch, keep pending=true. Because the receipt
-            // was already persisted, recovery can still prove ownership of this exact B process.
+            // was already persisted, recovery can prove the process but still requires the approved
+            // fingerprint before clearing the pending state.
             let after = try await Task.detached(priority: .userInitiated) {
                 try Compatibility.inspect(report.app)
             }.value
             guard after.fingerprint == report.fingerprint else {
-                throw SwitcherError.message("The official app changed during Second Account launch. The verified receipt was preserved, but the launch remains pending until recovery.")
+                throw SwitcherError.message("The official app changed during Second Account launch. The verified receipt was preserved, but the launch stays quarantined until safe recovery.")
             }
 
             try store.save([ProfileID](), name: "pending.json")
@@ -457,19 +462,30 @@ final class Controller: ObservableObject {
         if await quit(.b) { await open(.b) }
     }
 
-    /// Recovery is automatic when the pending launch already has a still-valid owned receipt.
-    /// Otherwise it only clears uncertainty after every official ChatGPT process has been closed,
-    /// because without credentials/argv/environment inspection there is no safe way to identify
-    /// an orphaned process created before a receipt was persisted.
-    func resolveInterruptedLaunches() {
+    /// Recovery is automatic only when a pending launch has both a still-valid owned receipt and
+    /// a currently installed isolation build matching the already-approved fingerprint. Otherwise
+    /// all official ChatGPT processes must be manually closed before metadata can be cleared.
+    func resolveInterruptedLaunches() async {
         guard !previewOnly, inFlight.isEmpty, shuttingDown.isEmpty, !busy else { return }
+        busy = true
+        defer { busy = false; refresh() }
 
         do {
             if uncertainty.contains(.b), verifiedSecondary() != nil {
+                guard let approved = settings.approvedFingerprint else {
+                    throw SwitcherError.message("Second Account ownership is verifiable, but no approved isolation fingerprint exists. Quit all official ChatGPT instances manually before clearing recovery state.")
+                }
+                let identity = try await resolveOfficialIdentity()
+                let report = try await Task.detached(priority: .userInitiated) {
+                    try Compatibility.inspect(identity.app)
+                }.value
+                guard report.fingerprint == approved else {
+                    throw SwitcherError.message("Second Account ownership is verifiable, but the installed ChatGPT build no longer matches the approved isolation fingerprint. Do not trust this pending instance as isolated. Close all official ChatGPT instances manually, then retry recovery.")
+                }
+                cachedReport = report
                 try store.save([ProfileID](), name: "pending.json")
                 uncertainty.remove(.b)
-                log("Recovered Second Account ownership from its verified persisted receipt. No process was terminated.")
-                refresh()
+                log("Recovered Second Account ownership after re-verifying the approved isolation fingerprint. No process was terminated.")
                 return
             }
 
@@ -482,7 +498,6 @@ final class Controller: ObservableObject {
             uncertainty.removeAll()
             receipts = []
             log("Cleared interrupted Second Account metadata after confirming no official ChatGPT process is running. Account data was preserved.")
-            refresh()
         } catch { showError(error) }
     }
 
@@ -490,7 +505,7 @@ final class Controller: ObservableObject {
     /// The previous directory is atomically moved under Profiles/Archived and can be recovered manually.
     func resetSecondAccount() {
         guard canResetSecond else {
-            showError(SwitcherError.message("Second Account can only be reset while it is fully stopped, has no pending launch, and has no owned process receipt."))
+            showError(SwitcherError.message("Second Account can only be reset while every official ChatGPT instance is closed, Second Account is fully stopped, and no pending/owned process metadata remains."))
             return
         }
         do {
@@ -555,8 +570,10 @@ final class Controller: ObservableObject {
         let pending = uncertainty.contains(.b) ? "yes" : "no"
         let approved = settings.approvedFingerprint ?? "none"
         let cached = cachedReport?.fingerprint ?? "not checked this run"
+        let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "development"
+        let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "dev"
         return """
-        Codex Account Switcher 1.2.0
+        Codex Account Switcher \(version) (\(build))
         Settings schema: \(settings.schemaVersion)
         macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Official app path: \(settings.appPath)
