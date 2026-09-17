@@ -15,6 +15,11 @@ public enum CurrentAccountState: Equatable {
         case .ambiguous(let count): return "Needs attention · \(count) default instances"
         }
     }
+
+    public var isAmbiguous: Bool {
+        if case .ambiguous = self { return true }
+        return false
+    }
 }
 
 public enum SecondaryAccountState: Equatable {
@@ -34,6 +39,49 @@ public enum SecondaryAccountState: Equatable {
         case .ownershipUncertain: return "Needs attention · ownership uncertain"
         case .unverifiedLiveProcess: return "Needs attention · unverified process"
         }
+    }
+
+    public var hasVerifiedRunningProcess: Bool {
+        if case .runningVerified = self { return true }
+        return false
+    }
+
+    public var needsRecovery: Bool {
+        switch self {
+        case .ownershipUncertain, .unverifiedLiveProcess: return true
+        default: return false
+        }
+    }
+}
+
+/// UI/action policy derived only from state. Keeping this pure makes it hard for menus and
+/// shortcuts to accidentally expose destructive actions in uncertain states.
+public struct AccountCapabilities: Equatable {
+    public let canOpenCurrent: Bool
+    public let canOpenSecond: Bool
+    public let canOpenBoth: Bool
+    public let canQuitSecond: Bool
+    public let canRestartSecond: Bool
+    public let canRecoverSecond: Bool
+
+    public init(current: CurrentAccountState, secondary: SecondaryAccountState,
+                secondarySetupComplete: Bool, compatibilityBusy: Bool) {
+        switch current {
+        case .launching, .ambiguous: canOpenCurrent = false
+        case .stopped, .running: canOpenCurrent = true
+        }
+
+        switch secondary {
+        case .stopped, .runningVerified:
+            canOpenSecond = secondarySetupComplete && !compatibilityBusy
+        case .launching, .quitting, .ownershipUncertain, .unverifiedLiveProcess:
+            canOpenSecond = false
+        }
+
+        canQuitSecond = secondary.hasVerifiedRunningProcess
+        canRestartSecond = secondary.hasVerifiedRunningProcess && secondarySetupComplete && !compatibilityBusy
+        canRecoverSecond = secondary.needsRecovery
+        canOpenBoth = canOpenCurrent && canOpenSecond
     }
 }
 
@@ -68,7 +116,7 @@ public enum AccountStateResolver {
 public enum MetadataMigration {
     public static func keepSecondaryReceipts(_ receipts: [LaunchReceipt]) throws -> [LaunchReceipt] {
         let secondary = receipts.filter { $0.profile == .b }
-        guard secondary.count <= 1 else { throw SwitcherError.message("Invalid metadata: multiple Second account receipts.") }
+        guard secondary.count <= 1 else { throw SwitcherError.message("Invalid metadata: multiple Second Account receipts.") }
         return secondary
     }
 
