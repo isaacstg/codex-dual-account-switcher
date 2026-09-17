@@ -131,5 +131,6 @@ public struct Settings: Codable, Equatable {
 
     public func name(_ id: ProfileID) -> String { id == .a ? nameA : nameB }
 
-    public var needsSchemaRewrite: Bool { schemaVersion != Self.currentSchemaVersion }
+    public var needsSchemaRewrite: Bool { schemaVersion < Self.currentSchemaVersion }
+    public var isFromFutureVersion: Bool { schemaVersion > Self.currentSchemaVersion }
 }
