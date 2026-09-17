@@ -6,7 +6,18 @@ public enum SwitcherError: LocalizedError {
     case message(String)
     public var errorDescription: String? { if case let .message(text) = self { return text }; return nil }
 }
+
+/// Kept Codable for backwards-compatible metadata. `.a` means the existing/default account;
+/// `.b` means the switcher-isolated secondary account.
 public enum ProfileID: String, Codable, CaseIterable { case a, b }
+
+public extension ProfileID {
+    var isCurrent: Bool { self == .a }
+    var isSecondary: Bool { self == .b }
+}
+
+/// Private paths are meaningful only for the isolated secondary account. The type still accepts
+/// an ID so legacy receipts can be decoded/migrated without touching their directories.
 public struct ProfilePaths: Equatable {
     public let home: URL
     public let electron: URL
@@ -16,6 +27,8 @@ public struct ProfilePaths: Equatable {
         electron = base.appendingPathComponent("electron", isDirectory: true)
     }
 }
+
+/// Launch plan for an isolated account. Current/default ChatGPT must be launched without this plan.
 public struct LaunchPlan {
     public let arguments: [String]
     public let environment: [String: String]
@@ -29,6 +42,7 @@ public struct LaunchPlan {
                        "CODEX_ELECTRON_USER_DATA_PATH": paths.electron.path]
     }
 }
+
 public struct ProcessStamp: Codable, Equatable {
     public let pid: Int32
     public let uid: UInt32
@@ -50,6 +64,7 @@ public struct ProcessStamp: Codable, Equatable {
                             microseconds: snapshot.microseconds, executable: path)
     }
 }
+
 public struct LaunchReceipt: Codable, Equatable {
     public let profile: ProfileID
     public let stamp: ProcessStamp
@@ -59,7 +74,7 @@ public struct LaunchReceipt: Codable, Equatable {
         self.profile = profile; self.stamp = stamp; home = paths.home.path; electron = paths.electron.path
     }
     public func owns(_ current: ProcessStamp?, paths: ProfilePaths, uid: UInt32) -> Bool {
-        guard let current, stamp.pid > 0, stamp.uid == uid else { return false }
+        guard profile == .b, let current, stamp.pid > 0, stamp.uid == uid else { return false }
         return current == stamp && home == paths.home.path && electron == paths.electron.path
     }
     public static func canAdopt(_ stamp: ProcessStamp, launchedAfter: TimeInterval,
@@ -68,9 +83,10 @@ public struct LaunchReceipt: Codable, Equatable {
         stamp.startTime >= launchedAfter && !existingPIDs.contains(stamp.pid)
     }
 }
+
 public struct Settings: Codable {
     public var appPath = "/Applications/ChatGPT.app"
-    public var nameA = "Personal"
+    public var nameA = "Current account"
     public var nameB = "Second account"
     public var approvedFingerprint: String?
     public var setupComplete = false
