@@ -6,6 +6,7 @@ public enum CurrentAccountState: Equatable {
     case launching
     case running(pid: Int32)
     case ambiguous(count: Int)
+    case blockedBySecondaryRecovery(count: Int)
 
     public var displayText: String {
         switch self {
@@ -13,12 +14,15 @@ public enum CurrentAccountState: Equatable {
         case .launching: return "Launching…"
         case .running(let pid): return "Running · PID \(pid)"
         case .ambiguous(let count): return "Needs attention · \(count) default instances"
+        case .blockedBySecondaryRecovery: return "Needs attention · recover Second Account first"
         }
     }
 
     public var isAmbiguous: Bool {
-        if case .ambiguous = self { return true }
-        return false
+        switch self {
+        case .ambiguous, .blockedBySecondaryRecovery: return true
+        default: return false
+        }
     }
 }
 
@@ -67,8 +71,10 @@ public struct AccountCapabilities: Equatable {
     public init(current: CurrentAccountState, secondary: SecondaryAccountState,
                 secondarySetupComplete: Bool, compatibilityBusy: Bool) {
         switch current {
-        case .launching, .ambiguous: canOpenCurrent = false
-        case .stopped, .running: canOpenCurrent = true
+        case .stopped, .running:
+            canOpenCurrent = true
+        case .launching, .ambiguous, .blockedBySecondaryRecovery:
+            canOpenCurrent = false
         }
 
         switch secondary {
@@ -93,8 +99,16 @@ public enum AccountStateResolver {
         return unique.filter { $0 != verifiedSecondaryPID }.sorted()
     }
 
-    public static func current(officialPIDs: [Int32], verifiedSecondaryPID: Int32?, launching: Bool = false) -> CurrentAccountState {
+    public static func current(officialPIDs: [Int32], verifiedSecondaryPID: Int32?,
+                               secondaryOwnershipUncertain: Bool = false,
+                               launching: Bool = false) -> CurrentAccountState {
         let candidates = currentCandidatePIDs(officialPIDs: officialPIDs, verifiedSecondaryPID: verifiedSecondaryPID)
+        // If B may exist but cannot be proven, no remaining official process can safely be
+        // classified as Current. Even zero processes stays blocked so recovery can run while
+        // the system is in the one state that conclusively proves no orphan is alive.
+        if secondaryOwnershipUncertain {
+            return .blockedBySecondaryRecovery(count: candidates.count)
+        }
         if candidates.count == 1 { return .running(pid: candidates[0]) }
         if candidates.count > 1 { return .ambiguous(count: candidates.count) }
         return launching ? .launching : .stopped
