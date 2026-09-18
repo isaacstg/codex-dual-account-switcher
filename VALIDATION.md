@@ -69,7 +69,7 @@ For 1.3.0 (13), local verification passed:
 
 The preview UI tests used only ignored scratch metadata. Preview never launched/focused/quit a live account, registered shortcuts, changed startup settings, or read profile contents. Unavailable-build confirmation gating was unit-tested; the actual installed official app passed its checks, so an unavailable-build native UI case was not claimed.
 
-GitHub Actions [run 35255458165](https://github.com/isaacstg/codex-dual-account-switcher/actions/runs/35255458165) passed the audit, metadata checks, tests, release build, strict bundle verification, provenance generation, and artifact upload on both macOS 14 and 15 for source commit `db3fc8b8d9a5a2317919634ffd0778997b0a74b8`.
+GitHub Actions [run 35255458165](https://github.com/isaacstg/pairbar/actions/runs/35255458165) passed the audit, metadata checks, tests, release build, strict bundle verification, provenance generation, and artifact upload on both macOS 14 and 15 for source commit `db3fc8b8d9a5a2317919634ffd0778997b0a74b8`.
 
 Installed-app validation on this Mac also passed:
 

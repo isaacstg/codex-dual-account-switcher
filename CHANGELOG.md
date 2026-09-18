@@ -5,7 +5,8 @@
 - Introduce Pairbar as the public project identity, with an original vector mark, banner, and social-preview asset.
 - Make the README focus on the workflow, setup, security boundaries, and accurate validation evidence; move the detailed manual to `docs/USER_GUIDE.md`.
 - Add an engineering case study documenting product decisions, implementation trade-offs, and AI-assisted development for portfolio readers.
-- Retain the descriptive repository URL and compatibility-sensitive installed 1.3 names and identifiers.
+- Rename the public repository to `isaacstg/pairbar`; update badges, clone instructions, documentation links, and the project homepage. The old GitHub URL redirects.
+- Retain compatibility-sensitive installed 1.3 names and identifiers.
 
 ## 1.3.0 — Menu-bar experience
 

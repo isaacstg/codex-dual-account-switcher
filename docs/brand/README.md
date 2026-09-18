@@ -1,6 +1,6 @@
 # Pairbar identity
 
-Pairbar = two accounts paired in the macOS menu bar. The descriptive repository URL remains `codex-dual-account-switcher` for existing links and discoverability.
+Pairbar = two accounts paired in the macOS menu bar. The repository is `isaacstg/pairbar`. Its former `codex-dual-account-switcher` URL redirects; the description and README retain ChatGPT/Codex account-switcher keywords for discoverability.
 
 - **Tagline:** Two accounts. One click apart.
 - **Palette:** ink `#0B1220`, mint `#69DCC8`, amber `#F6BC73`, paper `#F4F7FB`.
