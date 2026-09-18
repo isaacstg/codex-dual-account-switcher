@@ -14,6 +14,7 @@ Pre-ship verdict: **SHIP IT for public source publication**. This is not authori
 - Both macOS 14/15 jobs passed for `cbe5369`. Downloaded both retained artifacts and verified archive SHA-256 against `SHA256SUMS.txt` and commit against `BUILD_INFO.txt`.
 - MIT license, unofficial affiliation statement, privacy/threat model, build instructions, compatibility requirements, reporting guidance, issue template, validation limitations, and internal documentation links were reviewed.
 - Repository description now reflects Current plus one isolated Second, with relevant discovery topics. Issues are enabled and discussions remain disabled.
+- Preparation commit `565e3ee` passed both macOS CI jobs, and the updated 47-commit Gitleaks scan remained clean. GitHub's Node 20 deprecation annotation prompted an update to SHA-pinned official checkout/upload-artifact v7.0.1 actions, whose manifests use Node 24; the updated workflow is validated separately before visibility changes.
 
 ## Release boundary
 
