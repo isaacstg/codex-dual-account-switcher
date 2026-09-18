@@ -20,4 +20,10 @@ Pre-ship verdict: **SHIP IT for public source publication**. This is not authori
 
 Signed-in persistence, physical global shortcut dispatch, startup-at-login, and the remaining update/recovery/upgrade acceptance matrix are still distinct from this source review. See [VALIDATION.md](../VALIDATION.md). Developer ID signing and notarization remain future binary-release work.
 
-Private vulnerability reporting and anonymous public access are verified after changing repository visibility. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md) for the publication record.
+## Publication verification
+
+The repository became public on September 18, 2026. Anonymous GitHub API access confirmed `private: false` / `visibility: public`; anonymous raw README access also passed.
+
+Official Node 24 actions passed all steps on both macOS runners for `c4fa88a` in [run 35336196581](https://github.com/isaacstg/codex-dual-account-switcher/actions/runs/35336196581). Both downloaded artifacts matched their checksum and commit provenance, and the green run was anonymously accessible after publication.
+
+Repository security settings were verified: private vulnerability reporting enabled, secret scanning enabled, and secret push protection enabled. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md) for ongoing release and maintenance work.
