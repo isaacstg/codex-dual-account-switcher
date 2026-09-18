@@ -4,14 +4,16 @@ This project may be made public as source code once the repository settings and 
 
 ## Before changing repository visibility
 
-- [ ] Review every reachable Git commit for secrets and private diagnostics, including historical branches and tags.
-- [ ] Confirm `git status --short` is clean and `git ls-files --others --exclude-standard` shows no unintended files.
-- [ ] Run `python3 scripts/audit.py`, `swift test`, and `scripts/build.sh` from a clean checkout.
-- [ ] Confirm CI is green on both configured macOS versions and its uploaded ZIP checksum matches the build provenance.
-- [ ] Review `README.md`, `SECURITY.md`, `VALIDATION.md`, `CONTRIBUTING.md`, and this checklist for accurate claims.
+- [x] Review every remotely reachable Git commit for secrets and private diagnostics, including historical branches and tags (46 commits before publication preparation; Gitleaks and additional blob/metadata checks).
+- [x] Confirm no unintended tracked or untracked files; publication changes are committed before changing visibility.
+- [x] Run `python3 scripts/audit.py`, `swift test`, and `scripts/build.sh` from a clean checkout in a non-symlink location.
+- [x] Confirm macOS 14/15 CI is green at `cbe5369`; download both CI artifacts and verify their ZIP checksums and commit provenance. Recheck final preparation commit before publication.
+- [x] Review `README.md`, `SECURITY.md`, `VALIDATION.md`, `CONTRIBUTING.md`, and this checklist for accurate claims.
 - [ ] Enable GitHub private vulnerability reporting in the repository security settings.
-- [ ] Set the repository description and topics; state clearly that it is an independent, unofficial utility.
-- [ ] Decide whether repository issues and discussions should be enabled and who will triage them.
+- [x] Set the repository description and topics; state clearly that it is an independent, unofficial utility.
+- [x] Issues enabled for maintainer triage; discussions disabled. Bug template prohibits sharing account data.
+
+Private vulnerability reporting is configured immediately after visibility changes: GitHub returns 404 for its reporting endpoint while this repository is private. Source publication does not claim that the pending binary-release acceptance matrix is complete.
 
 ## Before publishing a binary release
 

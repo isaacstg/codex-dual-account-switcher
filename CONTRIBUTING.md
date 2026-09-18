@@ -14,6 +14,8 @@ scripts/build.sh
 
 The source-policy audit is required. Do not weaken it to accommodate a feature.
 
+Use a checkout with no symbolic-link ancestors, such as a folder in your home directory. Filesystem tests create private scratch directories inside the checkout and intentionally fail under macOS aliases such as `/tmp` or `/var`.
+
 For an opt-in integration check, start exactly one normal ChatGPT process and choose a **new path whose ancestors are not symbolic links** as scratch storage:
 
 ```sh

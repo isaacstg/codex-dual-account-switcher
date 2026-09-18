@@ -9,6 +9,24 @@ The project deliberately optimizes for one simple daily workflow:
 
 It does not clone your primary profile or move authentication data around.
 
+## Requirements and availability
+
+- macOS 13 or later. CI builds on macOS 14 and 15; runtime evidence and remaining acceptance cases are recorded in [VALIDATION.md](VALIDATION.md).
+- The official Electron-based OpenAI app named `ChatGPT.app`, with bundle identifier `com.openai.codex`. Other OpenAI desktop apps are not interchangeable with this build.
+- Xcode Command Line Tools with Swift 5.9 or later to build from source. There are no third-party package dependencies.
+
+This is a public-source project under the MIT license. There is currently no notarized binary release. Build locally, or use the ad-hoc personal-build artifacts from [GitHub Actions](https://github.com/isaacstg/codex-dual-account-switcher/actions). Review the security model before using the utility with sensitive work.
+
+```sh
+git clone https://github.com/isaacstg/codex-dual-account-switcher.git
+cd codex-dual-account-switcher
+python3 scripts/audit.py
+swift test
+bash scripts/build.sh
+```
+
+Use a checkout in a regular directory, such as your home directory. Filesystem tests create scratch storage under the checkout; macOS symlink locations such as `/tmp` and `/var` are intentionally rejected by the private-storage guard.
+
 ## The model
 
 The switcher is intentionally asymmetric:

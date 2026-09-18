@@ -28,7 +28,7 @@ public enum Compatibility {
     public static func inspectOfficialIdentity(_ candidate: URL) throws -> OfficialAppIdentity {
         let app = candidate.standardizedFileURL.resolvingSymlinksInPath()
         guard FileManager.default.fileExists(atPath: app.path) else {
-            throw SwitcherError.message("The official app is missing or moved. Use Settings & Compatibility → Locate app… to select its new location. Account data is preserved.")
+            throw SwitcherError.message("The official app is missing or moved. Use Settings → App details → Choose app… to select its new location. Account data is preserved.")
         }
         guard app.pathExtension == "app", let bundle = Bundle(url: app),
               bundle.bundleIdentifier == bundleIdentifier, let executable = bundle.executableURL else {

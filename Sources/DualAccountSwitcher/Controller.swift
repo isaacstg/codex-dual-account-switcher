@@ -346,7 +346,7 @@ final class Controller: NSObject, ObservableObject {
         }
 
         guard settings.setupComplete else {
-            showError(SwitcherError.message("Complete Settings & Compatibility before launching Second Account."))
+            showError(SwitcherError.message("Choose Set Up Second Account in the switcher before opening Second Account."))
             return
         }
         await openSecond()
@@ -398,7 +398,7 @@ final class Controller: NSObject, ObservableObject {
             return
         }
         guard !uncertainty.contains(.b) else {
-            showError(SwitcherError.message("The previous Second Account launch has uncertain ownership. Use Diagnostics recovery before retrying."))
+            showError(SwitcherError.message("The previous Second Account launch has uncertain ownership. Open Help and choose Try Safe Recovery before retrying."))
             return
         }
         if let receipt = receipts.first, runtime.application(pid: receipt.stamp.pid) != nil {
